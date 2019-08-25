@@ -101,7 +101,7 @@ struct VS_INPUT
     float2 vTexcoord                        : TEXCOORD0;
 };
 
-struct VS_OUTPUT
+struct VS_OUTPUT_MAIN
 {
     float3 vNormal                          : NORMAL;
     float2 vTexcoord                        : TEXCOORD0;
@@ -111,12 +111,18 @@ struct VS_OUTPUT
     float  vDepth                           : TEXCOORD3;
 };
 
-//--------------------------------------------------------------------------------------
-// Vertex Shader
-//--------------------------------------------------------------------------------------
-VS_OUTPUT VSMain( VS_INPUT Input )
+struct VS_OUTPUT_DEPTH
 {
-    VS_OUTPUT Output;
+	float4 vPosition                        : SV_POSITION;
+};
+
+
+//--------------------------------------------------------------------------------------
+// Vertex Shader for main pass
+//--------------------------------------------------------------------------------------
+VS_OUTPUT_MAIN VSMain( VS_INPUT Input )
+{
+    VS_OUTPUT_MAIN Output;
 
     Output.vPosition = mul( Input.vPosition, m_mWorldViewProjection );
     Output.vNormal = mul( Input.vNormal, (float3x3)m_mWorld );
@@ -130,7 +136,17 @@ VS_OUTPUT VSMain( VS_INPUT Input )
     
 }
 
+//--------------------------------------------------------------------------------------
+// Vertex Shader for depth pass
+//--------------------------------------------------------------------------------------
+VS_OUTPUT_DEPTH VSDepth( VS_INPUT Input )
+{
+	VS_OUTPUT_DEPTH Output;
 
+	Output.vPosition = mul( Input.vPosition, m_mWorldViewProjection );
+
+	return Output;
+}
 
 static const float4 vCascadeColorsMultiplier[8] = 
 {
@@ -298,7 +314,7 @@ void CalculateBlendAmountForMap ( in float4 vShadowMapTextureCoord,
 //--------------------------------------------------------------------------------------
 // Calculate the shadow based on several options and rende the scene.
 //--------------------------------------------------------------------------------------
-float4 PSMain( VS_OUTPUT Input ) : SV_TARGET
+float4 PSMain( VS_OUTPUT_MAIN Input ) : SV_TARGET
 {
     float4 vDiffuse = g_txDiffuse.Sample( g_samLinear, Input.vTexcoord );
     
@@ -502,3 +518,10 @@ float4 PSMain( VS_OUTPUT Input ) : SV_TARGET
 
 }
 
+//--------------------------------------------------------------------------------------
+// Empty ps shader for depth pass.
+//--------------------------------------------------------------------------------------
+void PSDepth( VS_OUTPUT_DEPTH Input )
+{
+
+}

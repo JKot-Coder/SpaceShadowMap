@@ -185,7 +185,7 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     CWaitDlg CompilingShadersDlg;
     if ( DXUT_EnsureD3D11APIs() )
         CompilingShadersDlg.ShowDialog( L"Compiling Shaders and loading models." );
-    DXUTCreateDevice (D3D_FEATURE_LEVEL_10_0, true, 800, 600 );
+    DXUTCreateDevice (D3D_FEATURE_LEVEL_11_0, true, 800, 600 );
     CompilingShadersDlg.DestroyDialog();
     DXUTMainLoop(); // Enter into the DXUT render loop
 
@@ -907,17 +907,21 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
     g_CascadedShadow.InitFrame( pd3dDevice );
 
-    g_CascadedShadow.RenderShadowsForAllCascades( pd3dImmediateContext, g_pSelectedMesh);
-    
-    D3D11_VIEWPORT vp;
-    vp.Width = (FLOAT)DXUTGetDXGIBackBufferSurfaceDesc()->Width;
-    vp.Height = (FLOAT)DXUTGetDXGIBackBufferSurfaceDesc()->Height;
-    vp.MinDepth = 0;
-    vp.MaxDepth = 1;
-    vp.TopLeftX = 0;
-    vp.TopLeftY = 0;
+	D3D11_VIEWPORT vp;
+	vp.Width = (FLOAT)DXUTGetDXGIBackBufferSurfaceDesc()->Width;
+	vp.Height = (FLOAT)DXUTGetDXGIBackBufferSurfaceDesc()->Height;
+	vp.MinDepth = 0;
+	vp.MaxDepth = 1;
+	vp.TopLeftX = 0;
+	vp.TopLeftY = 0;
 
-    g_CascadedShadow.RenderScene( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera,  &vp, g_bVisualizeCascades );
+	g_CascadedShadow.RenderDepthPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera, &vp );
+
+	g_CascadedShadow.CalculateShadowMapCoverage( pd3dImmediateContext );
+
+    g_CascadedShadow.RenderShadowsForAllCascades( pd3dImmediateContext, g_pSelectedMesh );
+
+    g_CascadedShadow.RenderMainPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera, &vp, g_bVisualizeCascades );
     
     pd3dImmediateContext->RSSetViewports( 1, &vp);            
     pd3dImmediateContext->OMSetRenderTargets( 1, &pRTV, pDSV );

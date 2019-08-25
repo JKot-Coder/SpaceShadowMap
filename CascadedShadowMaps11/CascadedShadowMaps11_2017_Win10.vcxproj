@@ -405,6 +405,10 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="CalculateShadowCoverage.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
