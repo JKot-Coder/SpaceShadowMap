@@ -51,9 +51,13 @@ cbuffer cbAllShadowData : register( b0 )
 {
     matrix          m_mWorldViewProjection;
     matrix          m_mWorld;
+	matrix			m_mProj;
     matrix          m_mWorldView;
     matrix          m_mShadow;
-    float4          m_vCascadeOffset[8];
+	float4          m_CameraDirs[4];
+	float4			m_ScreenSize; // zw = 1.0 / screensize.xy;
+	float4			m_CameraPosition;
+	float4          m_vCascadeOffset[8];
     float4          m_vCascadeScale[8];
     int             m_nCascadeLevels; // Number of Cascades
     int             m_iVisualizeCascades; // 1 is to visualize the cascades in different colors. 0 is to just draw the scene

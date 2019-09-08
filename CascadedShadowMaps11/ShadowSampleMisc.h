@@ -73,8 +73,12 @@ struct CB_ALL_SHADOW_DATA
 {
     DirectX::XMFLOAT4X4  m_WorldViewProj;
     DirectX::XMFLOAT4X4  m_World;
+	DirectX::XMFLOAT4X4  m_Proj;
     DirectX::XMFLOAT4X4  m_WorldView;
     DirectX::XMFLOAT4X4  m_Shadow;
+	DirectX::XMFLOAT4 m_CameraDirs[4];
+	DirectX::XMFLOAT4 m_ScreenSize;
+	DirectX::XMFLOAT4 m_CameraPosition;
     DirectX::XMFLOAT4 m_vCascadeOffset[8];
     DirectX::XMFLOAT4 m_vCascadeScale[8];
 

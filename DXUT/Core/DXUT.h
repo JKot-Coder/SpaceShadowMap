@@ -146,7 +146,6 @@ struct DXUTD3D11DeviceSettings
     UINT32 SyncInterval;
     DWORD PresentFlags;
     bool AutoCreateDepthStencil; // DXUT will create the depth stencil resource and view if true
-    DXGI_FORMAT AutoDepthStencilFormat;
     D3D_FEATURE_LEVEL DeviceFeatureLevel;
 };
 
@@ -275,6 +274,7 @@ const DXGI_SURFACE_DESC* WINAPI DXUTGetDXGIBackBufferSurfaceDesc();
 HRESULT                  WINAPI DXUTSetupD3D11Views( _In_ ID3D11DeviceContext* pd3dDeviceContext ); // Supports immediate or deferred context
 D3D_FEATURE_LEVEL        WINAPI DXUTGetD3D11DeviceFeatureLevel(); // Returns the D3D11 devices current feature level
 ID3D11RenderTargetView*  WINAPI DXUTGetD3D11RenderTargetView();
+ID3D11ShaderResourceView*WINAPI DXUTGetD3D11DepthStencilSRV();
 ID3D11DepthStencilView*  WINAPI DXUTGetD3D11DepthStencilView();
 
 ID3D11Device*            WINAPI DXUTGetD3D11Device();

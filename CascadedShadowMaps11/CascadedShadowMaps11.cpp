@@ -902,6 +902,7 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
     auto pRTV = DXUTGetD3D11RenderTargetView();
     pd3dImmediateContext->ClearRenderTargetView( pRTV, Colors::MidnightBlue );
 
+	auto pSRV = DXUTGetD3D11DepthStencilSRV();
     auto pDSV = DXUTGetD3D11DepthStencilView();
     pd3dImmediateContext->ClearDepthStencilView( pDSV, D3D11_CLEAR_DEPTH, 1.0, 0 );
 
@@ -917,7 +918,7 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 
 	g_CascadedShadow.RenderDepthPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera, &vp );
 
-	g_CascadedShadow.CalculateShadowMapCoverage( pd3dImmediateContext );
+	g_CascadedShadow.CalculateShadowMapCoverage( pd3dImmediateContext, pSRV, g_pActiveCamera, &vp );
 
     g_CascadedShadow.RenderShadowsForAllCascades( pd3dImmediateContext, g_pSelectedMesh );
 

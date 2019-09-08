@@ -86,6 +86,7 @@ protected:
         D3D_FEATURE_LEVEL       m_D3D11FeatureLevel;	   // the D3D11 feature level that this device supports
         ID3D11Texture2D*        m_D3D11DepthStencil;       // the D3D11 depth stencil texture (optional)
         ID3D11DepthStencilView* m_D3D11DepthStencilView;   // the D3D11 depth stencil view (optional)
+		ID3D11ShaderResourceView* m_D3D11DepthStencilSRV;  // the D3D11 depth stencil SRV (optional)
         ID3D11RenderTargetView* m_D3D11RenderTargetView;   // the D3D11 render target view
         ID3D11RasterizerState*  m_D3D11RasterizerState;    // the D3D11 Rasterizer state
 
@@ -314,6 +315,7 @@ public:
     GET_SET_ACCESSOR( D3D_FEATURE_LEVEL, D3D11FeatureLevel );
     GET_SET_ACCESSOR( ID3D11Texture2D*, D3D11DepthStencil );
     GET_SET_ACCESSOR( ID3D11DepthStencilView*, D3D11DepthStencilView );   
+	GET_SET_ACCESSOR( ID3D11ShaderResourceView*, D3D11DepthStencilSRV );
     GET_SET_ACCESSOR( ID3D11RenderTargetView*, D3D11RenderTargetView );
     GET_SET_ACCESSOR( ID3D11RasterizerState*, D3D11RasterizerState );
 
@@ -587,6 +589,7 @@ bool WINAPI DXUTGetMSAASwapChainCreated()
 }
 D3D_FEATURE_LEVEL WINAPI DXUTGetD3D11DeviceFeatureLevel()  { return GetDXUTState().GetD3D11FeatureLevel(); }
 IDXGISwapChain* WINAPI DXUTGetDXGISwapChain()              { return GetDXUTState().GetDXGISwapChain(); }
+ID3D11ShaderResourceView* WINAPI DXUTGetD3D11DepthStencilSRV() { return GetDXUTState().GetD3D11DepthStencilSRV(); }
 ID3D11RenderTargetView* WINAPI DXUTGetD3D11RenderTargetView() { return GetDXUTState().GetD3D11RenderTargetView(); }
 ID3D11DepthStencilView* WINAPI DXUTGetD3D11DepthStencilView() { return GetDXUTState().GetD3D11DepthStencilView(); }
 const DXGI_SURFACE_DESC* WINAPI DXUTGetDXGIBackBufferSurfaceDesc() { return GetDXUTState().GetBackBufferSurfaceDescDXGI(); }
@@ -2319,7 +2322,8 @@ HRESULT DXUTCreateD3D11Views( ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3
     HRESULT hr = S_OK;
     auto pSwapChain = DXUTGetDXGISwapChain();
     ID3D11DepthStencilView* pDSV = nullptr;
-    ID3D11RenderTargetView* pRTV = nullptr;
+	ID3D11ShaderResourceView* pSRV = nullptr;
+	ID3D11RenderTargetView* pRTV = nullptr;
 
     // Get the back buffer and desc
     ID3D11Texture2D* pBackBuffer;
@@ -2346,11 +2350,11 @@ HRESULT DXUTCreateD3D11Views( ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3
         descDepth.Height = backBufferSurfaceDesc.Height;
         descDepth.MipLevels = 1;
         descDepth.ArraySize = 1;
-        descDepth.Format = pDeviceSettings->d3d11.AutoDepthStencilFormat;
+        descDepth.Format = DXGI_FORMAT_R24G8_TYPELESS;
         descDepth.SampleDesc.Count = pDeviceSettings->d3d11.sd.SampleDesc.Count;
         descDepth.SampleDesc.Quality = pDeviceSettings->d3d11.sd.SampleDesc.Quality;
         descDepth.Usage = D3D11_USAGE_DEFAULT;
-        descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+        descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
         descDepth.CPUAccessFlags = 0;
         descDepth.MiscFlags = 0;
         hr = pd3dDevice->CreateTexture2D( &descDepth, nullptr, &pDepthStencil );
@@ -2361,7 +2365,7 @@ HRESULT DXUTCreateD3D11Views( ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3
 
         // Create the depth stencil view
         D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
-        descDSV.Format = descDepth.Format;
+        descDSV.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
         descDSV.Flags = 0;
         if( descDepth.SampleDesc.Count > 1 )
             descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
@@ -2373,6 +2377,13 @@ HRESULT DXUTCreateD3D11Views( ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3
             return hr;
         DXUT_SetDebugName( pDSV, "DXUT" );
         GetDXUTState().SetD3D11DepthStencilView( pDSV );
+	
+		CD3D11_SHADER_RESOURCE_VIEW_DESC descSRV( D3D11_SRV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R24_UNORM_X8_TYPELESS, 0, 1 );
+		hr = pd3dDevice->CreateShaderResourceView( pDepthStencil, &descSRV, &pSRV );
+		if ( FAILED( hr ) )
+			return hr;
+		DXUT_SetDebugName( pSRV, "DXUT" );
+		GetDXUTState().SetD3D11DepthStencilSRV( pSRV );
     }
 
     hr = DXUTSetupD3D11Views( pd3dImmediateContext );
@@ -3025,6 +3036,9 @@ void DXUTCleanup3DEnvironment( _In_ bool bReleaseSettings )
         auto pDS = GetDXUTState().GetD3D11DepthStencil();
         SAFE_RELEASE( pDS );
         GetDXUTState().SetD3D11DepthStencil( nullptr );
+		auto pSRV = GetDXUTState().GetD3D11DepthStencilSRV();
+		SAFE_RELEASE( pSRV );
+		GetDXUTState().SetD3D11DepthStencilSRV( nullptr );
         auto pDSV = GetDXUTState().GetD3D11DepthStencilView();
         SAFE_RELEASE( pDSV );
         GetDXUTState().SetD3D11DepthStencilView( nullptr );
@@ -3727,6 +3741,9 @@ void DXUTResizeDXGIBuffers( UINT Width, UINT Height, BOOL bFullScreen )
     auto pDS = GetDXUTState().GetD3D11DepthStencil();
     SAFE_RELEASE( pDS );
     GetDXUTState().SetD3D11DepthStencil( nullptr );
+	auto pSRV = GetDXUTState().GetD3D11DepthStencilSRV();
+	SAFE_RELEASE( pSRV );
+	GetDXUTState().SetD3D11DepthStencilSRV( nullptr );
     auto pDSV = GetDXUTState().GetD3D11DepthStencilView();
     SAFE_RELEASE( pDSV );
     GetDXUTState().SetD3D11DepthStencilView( nullptr );
@@ -4383,7 +4400,6 @@ void DXUTApplyDefaultDeviceSettings(DXUTDeviceSettings *modifySettings)
 
     modifySettings->d3d11.AdapterOrdinal = 0;
     modifySettings->d3d11.AutoCreateDepthStencil = true;
-    modifySettings->d3d11.AutoDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 #if defined(DEBUG) || defined(_DEBUG)
     modifySettings->d3d11.CreateFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #else
