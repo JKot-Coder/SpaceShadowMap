@@ -440,11 +440,11 @@ float4 PSMain( VS_OUTPUT_MAIN Input ) : SV_TARGET
     // The derivative calculation has to be inside of the loop in order to prevent divergent flow control artifacts.
     if( USE_DERIVATIVES_FOR_DEPTH_OFFSET_FLAG ) 
     {
-        vShadowMapTextureCoordDDX = ddx( vShadowMapTextureCoordViewSpace );
-        vShadowMapTextureCoordDDY = ddy( vShadowMapTextureCoordViewSpace );    
+        vShadowMapTextureCoordDDX = ddx( vShadowMapTextureCoordViewSpace.xyz );
+        vShadowMapTextureCoordDDY = ddy( vShadowMapTextureCoordViewSpace.xyz );
         
-        vShadowMapTextureCoordDDX *= m_vCascadeScale[iCurrentCascadeIndex];
-        vShadowMapTextureCoordDDY *= m_vCascadeScale[iCurrentCascadeIndex];
+        vShadowMapTextureCoordDDX *= m_vCascadeScale[iCurrentCascadeIndex].xyz;
+        vShadowMapTextureCoordDDY *= m_vCascadeScale[iCurrentCascadeIndex].xyz;
     }    
     
     ComputeCoordinatesTransform( iCurrentCascadeIndex, 
@@ -514,7 +514,7 @@ float4 PSMain( VS_OUTPUT_MAIN Input ) : SV_TARGET
                       saturate( dot( vLightDir3 , Input.vNormal ) )*0.05f +
                       saturate( dot( vLightDir4 , Input.vNormal ) )*0.05f ;
     
-    float4 vShadowLighting = fLighting * 0.5f;
+    float vShadowLighting = fLighting * 0.5f;
     fLighting += saturate( dot( m_vLightDir , Input.vNormal ) );
     fLighting = lerp( vShadowLighting, fLighting, fPercentLit );
     
