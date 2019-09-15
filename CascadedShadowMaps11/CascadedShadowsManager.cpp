@@ -162,7 +162,6 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
     m_pViewerCamera = pViewerCamera;          
     m_pLightCamera = pLightCamera;         
 
-
     if ( !m_pvsRenderOrthoShadowBlob ) 
     {
         V_RETURN( DXUTCompileFromFile( 
@@ -331,7 +330,6 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
 //--------------------------------------------------------------------------------------
 HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources() 
 {
-
     SAFE_RELEASE( m_pVertexLayoutMesh );
     SAFE_RELEASE( m_pSamLinear );
     SAFE_RELEASE( m_pSamShadowPoint );
@@ -515,9 +513,11 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources( ID3D11Devi
 		V_RETURN( pd3dDevice->CreateShaderResourceView( m_pCascadedShadowMapTexture, &dsrvd, &m_pCascadedShadowMapSRV ) );
 		DXUT_SetDebugName( m_pCascadedShadowMapSRV, "CSM ShadowMap SRV" );
 
+		const int covegrageMapSize = 128;
+
 		CD3D11_TEXTURE2D_DESC sctd( DXGI_FORMAT_R32_TYPELESS,
-			static_cast<INT>(m_CopyOfCascadeConfig.m_iBufferSize / 8),
-			static_cast<INT>(m_CopyOfCascadeConfig.m_iBufferSize / 8),
+			covegrageMapSize,
+			covegrageMapSize,
 			1,
 			1,
 			D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS );
@@ -1163,6 +1163,7 @@ HRESULT CascadedShadowsManager::RenderDepthPass( ID3D11DeviceContext* pd3dDevice
 	D3D11_VIEWPORT* dxutViewPort )
 {
 	HRESULT hr = S_OK;
+
 	D3D11_MAPPED_SUBRESOURCE MappedResource;
 	ID3D11RenderTargetView* pnullView = nullptr;
 
@@ -1308,8 +1309,8 @@ HRESULT CascadedShadowsManager::CalculateShadowMapCoverage( ID3D11DeviceContext 
 
 	pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
 
-	const unsigned int NUM_THREADS_X = 8;
-	const unsigned int NUM_THREADS_Y = 8;
+	const unsigned int NUM_THREADS_X = 16;
+	const unsigned int NUM_THREADS_Y = 16;
 
 	const unsigned int screenWidth = dxutViewPort->Width;
 	const unsigned int screenHeight = dxutViewPort->Height;
@@ -1319,9 +1320,11 @@ HRESULT CascadedShadowsManager::CalculateShadowMapCoverage( ID3D11DeviceContext 
 	const unsigned int numGroupsY = screenHeight / NUM_THREADS_Y + (screenHeight % NUM_THREADS_Y == 0);
 
 	const size_t cascadeLevels = std::max( m_CopyOfCascadeConfig.m_nCascadeLevels - 1, 0 );
+	const unsigned int black[] = { 0, 0, 0, 0 };
 
 	ID3D11RenderTargetView* pnullView = nullptr;
 	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, nullptr );
+	pd3dDeviceContext->ClearUnorderedAccessViewUint( m_pShadowCoverageMapUAV, black );
 
 	pd3dDeviceContext->CSSetUnorderedAccessViews( 0, 1, &m_pShadowCoverageMapUAV, nullptr );
 	pd3dDeviceContext->CSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );

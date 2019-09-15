@@ -13,6 +13,7 @@
 #include "SDKMesh.h"
 #include "resource.h"
 
+#include <atlbase.h>
 #include "ShadowSampleMisc.h"
 #include "CascadedShadowsManager.h"
 #include <commdlg.h>
@@ -821,7 +822,6 @@ HRESULT DestroyD3DComponents()
 
     g_CascadedShadow.DestroyAndDeallocateShadowResources();
     return S_OK;
-
 }
 
 
@@ -916,13 +916,24 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	vp.TopLeftX = 0;
 	vp.TopLeftY = 0;
 
+	CComPtr<ID3DUserDefinedAnnotation>	userAnnotation;
+	HRESULT hr = pd3dImmediateContext->QueryInterface( __uuidof(userAnnotation), reinterpret_cast<void**>(&userAnnotation) );
+
+	userAnnotation->BeginEvent( L"Depth Pass" );
 	g_CascadedShadow.RenderDepthPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera, &vp );
+	userAnnotation->EndEvent();
 
+	userAnnotation->BeginEvent( L"Coverage Pass" );
 	g_CascadedShadow.CalculateShadowMapCoverage( pd3dImmediateContext, pSRV, g_pActiveCamera, &vp );
+	userAnnotation->EndEvent();
 
+	userAnnotation->BeginEvent( L"Shadows Pass" );
     g_CascadedShadow.RenderShadowsForAllCascades( pd3dImmediateContext, g_pSelectedMesh );
+	userAnnotation->EndEvent();
 
+	userAnnotation->BeginEvent( L"Main Pass" );
     g_CascadedShadow.RenderMainPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera, &vp, g_bVisualizeCascades );
+	userAnnotation->EndEvent();
     
     pd3dImmediateContext->RSSetViewports( 1, &vp);            
     pd3dImmediateContext->OMSetRenderTargets( 1, &pRTV, pDSV );
