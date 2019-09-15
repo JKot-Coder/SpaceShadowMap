@@ -1309,15 +1309,15 @@ HRESULT CascadedShadowsManager::CalculateShadowMapCoverage( ID3D11DeviceContext 
 
 	pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
 
-	const unsigned int NUM_THREADS_X = 16;
-	const unsigned int NUM_THREADS_Y = 16;
+	const unsigned int NUM_SAMPLES_PER_GROUP_X = 32;
+	const unsigned int NUM_SAMPLES_PER_GROUP_Y = 32;
 
 	const unsigned int screenWidth = dxutViewPort->Width;
 	const unsigned int screenHeight = dxutViewPort->Height;
 
 	// Get number of groups
-	const unsigned int numGroupsX = screenWidth / NUM_THREADS_X + (screenWidth % NUM_THREADS_X == 0);
-	const unsigned int numGroupsY = screenHeight / NUM_THREADS_Y + (screenHeight % NUM_THREADS_Y == 0);
+	const unsigned int numGroupsX = screenWidth / NUM_SAMPLES_PER_GROUP_X + (screenWidth % NUM_SAMPLES_PER_GROUP_X == 0);
+	const unsigned int numGroupsY = screenHeight / NUM_SAMPLES_PER_GROUP_Y + (screenHeight % NUM_SAMPLES_PER_GROUP_Y == 0);
 
 	const size_t cascadeLevels = std::max( m_CopyOfCascadeConfig.m_nCascadeLevels - 1, 0 );
 	const unsigned int black[] = { 0, 0, 0, 0 };
