@@ -23,25 +23,31 @@ SamplerState DepthSampler
 	AddressV = Clamp;
 };
 
-bool compareHash( uint a[4], uint4 b )
+bool compareHash( uint4 a, uint4 b )
 {
-	bool result = 0;
-
+	uint4 result;
+	/*
 	[unroll]
 	for (int i = 0; i < 4; i++)
-		result = a[i] == b[0] | a[i] == b[1] | a[i] == b[2] | a[i] == b[3];
-	
-	return result;
+		result = result && (a[i] == b[0] | a[i] == b[1] | a[i] == b[2] | a[i] == b[3]);
+
+	return result;*/
+
+	result = uint4(a[0] == b[0] | a[0] == b[1] | a[0] == b[2] | a[0] == b[3],
+		a[1] == b[0] | a[1] == b[1] | a[1] == b[2] | a[1] == b[3],
+		a[2] == b[0] | a[2] == b[1] | a[2] == b[2] | a[2] == b[3],
+		a[3] == b[0] | a[3] == b[1] | a[3] == b[2] | a[3] == b[3]);
+
+	return dot( result, 1 ) == 4;
 }
 
 [numthreads( COMPUTE_NUM_THREAD_X, COMPUTE_NUM_THREAD_Y, 1)]
 void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_GroupThreadId, uint3 gID : SV_GroupID )
 { 
-	
-	
 	int2 outputIndex[4];
 	uint outputData[4] = { 0, 0, 0, 0 };
 	uint dataHash[4] = { 0, 0, 0, 0 };
+	uint4 dataHashVector;
 
 	const uint2 dispatchSampleIndex = dispatchThreadId.xy * 2;
 
@@ -64,14 +70,14 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 		const float linearDepth = m_mProj[3][2] / (zwDepth - m_mProj[2][2]);
 
 		const float4 worldPos = float4(m_CameraPosition.xyz + viewRay * linearDepth, 1.0);
-		const float4 vShadowTexCoordViewSpace = mul( worldPos, m_mShadow );
-		const float2 shadowTexCoordLastCascade = vShadowTexCoordViewSpace * m_vCascadeScale[CASCADE_COUNT_FLAG - 1] + m_vCascadeOffset[CASCADE_COUNT_FLAG - 1];
+		const float2 vShadowTexCoordViewSpace = mul( worldPos, m_mShadow ).xy;
+		const float2 shadowTexCoordLastCascade = vShadowTexCoordViewSpace * m_vCascadeScale[CASCADE_COUNT_FLAG - 1].xy + m_vCascadeOffset[CASCADE_COUNT_FLAG - 1].xy;
 
 		[unroll]
 		for (int iCascadeIndex = 0; iCascadeIndex < CASCADE_COUNT_FLAG; ++iCascadeIndex)
 		{
-			float4 vShadowTexCoord = vShadowTexCoordViewSpace * m_vCascadeScale[iCascadeIndex];
-			vShadowTexCoord += m_vCascadeOffset[iCascadeIndex];
+			float2 vShadowTexCoord = vShadowTexCoordViewSpace * m_vCascadeScale[iCascadeIndex].xy;
+			vShadowTexCoord += m_vCascadeOffset[iCascadeIndex].xy;
 
 			vShadowTexCoord.x *= m_fShadowPartitionSize;  // precomputed (float)iCascadeIndex / (float)CASCADE_CNT
 			vShadowTexCoord.x += (m_fShadowPartitionSize * (float)iCascadeIndex);
@@ -87,9 +93,10 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 		}
 	}
 
-	g_sharedData[threadID.x][threadID.y] = uint4(dataHash[0], dataHash[1], dataHash[2], dataHash[3]);
+	dataHashVector = uint4(dataHash[0], dataHash[1], dataHash[2], dataHash[3]);
+	g_sharedData[threadID.x][threadID.y] = dataHashVector;
 	
-	if ( uint(dataHash[0] | dataHash[1] | dataHash[2] | dataHash[3]) == 0 )
+	if (dot( dataHashVector, dataHashVector ) == 0)
 		return;
 
 	GroupMemoryBarrier();
@@ -97,19 +104,19 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 	if (threadID.x != COMPUTE_NUM_THREAD_X - 1 || threadID.y != COMPUTE_NUM_THREAD_X - 1)
 	{
 		uint4 sdata = g_sharedData[0][threadID.y];
-		if ( threadID.x != 0 && compareHash( dataHash, sdata ) )
+		if ( threadID.x != 0 && compareHash( dataHashVector, sdata ) )
 			return;
 
 		sdata = g_sharedData[threadID.x][0];
-		if ( threadID.y != 0 && compareHash( dataHash, sdata ) )
+		if ( threadID.y != 0 && compareHash( dataHashVector, sdata ) )
 			return;
 
 		sdata = g_sharedData[COMPUTE_NUM_THREAD_X - 1][threadID.y];
-		if ( compareHash( dataHash, sdata ) )
+		if ( compareHash( dataHashVector, sdata ) )
 			return;
 
 		sdata = g_sharedData[threadID.x][COMPUTE_NUM_THREAD_Y - 1];
-		if ( compareHash( dataHash, sdata ) )
+		if ( compareHash( dataHashVector, sdata ) )
 			return;
 	}
 
