@@ -24,6 +24,7 @@
     <CLInclude Include="CascadedShadowsManager.h" />
     <CLInclude Include="ShadowSampleMisc.h" />
     <CLInclude Include="WaitDlg.h" />
+    <ClCompile Include="GpuProfiler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="RenderCascadeScene.hlsl">
@@ -40,5 +41,6 @@
     <ResourceCompile Include="CascadedShadowMaps11.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
+    <ClInclude Include="GpuProfiler.hpp" />
   </ItemGroup>
 </Project>

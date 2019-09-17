@@ -15,6 +15,7 @@
 
 #include <atlbase.h>
 #include "ShadowSampleMisc.h"
+#include "GpuProfiler.hpp"
 #include "CascadedShadowsManager.h"
 #include <commdlg.h>
 #include "WaitDlg.h"
@@ -77,6 +78,8 @@ float                       g_fDepthMin;
 float                       g_fDepthMax;
 float                       g_fDepthScale;
 
+CGpuProfiler				g_gpuProfiler;
+WCHAR						g_frameMetrics[256];
 
 //--------------------------------------------------------------------------------------
 // UI control IDs
@@ -186,7 +189,7 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     CWaitDlg CompilingShadersDlg;
     if ( DXUT_EnsureD3D11APIs() )
         CompilingShadersDlg.ShowDialog( L"Compiling Shaders and loading models." );
-    DXUTCreateDevice (D3D_FEATURE_LEVEL_11_0, true, 800, 600 );
+    DXUTCreateDevice (D3D_FEATURE_LEVEL_11_0, true, 1024, 768 );
     CompilingShadersDlg.DestroyDialog();
     DXUTMainLoop(); // Enter into the DXUT render loop
 
@@ -233,12 +236,12 @@ void InitApp()
     g_HUD.SetCallback( OnGUIEvent ); INT iY = 10;
 
     // Add tons of GUI stuff
-    g_HUD.AddButton( IDC_TOGGLEFULLSCREEN, L"Toggle full screen", 0, iY, 170, 23 );
-    g_HUD.AddButton( IDC_CHANGEDEVICE, L"Change device (F2)", 0, iY += 26, 170, 23, VK_F2 );
-    g_HUD.AddButton( IDC_TOGGLEWARP, L"Toggle WARP (F4)", 0, iY += 26, 170, 23, VK_F4 );
-    g_HUD.AddCheckBox( IDC_TOGGLEVISUALIZECASCADES, L"Visualize Cascades", 0, iY+=26, 170, 23, g_bVisualizeCascades, VK_F8 );
+    g_HUD.AddButton( IDC_TOGGLEFULLSCREEN, L"Toggle full screen", 0, iY, 170 * 1.5, 23 * 1.5 );
+    g_HUD.AddButton( IDC_CHANGEDEVICE, L"Change device (F2)", 0, iY += 26 * 1.5, 170 * 1.5, 23 * 1.5, VK_F2 );
+    g_HUD.AddButton( IDC_TOGGLEWARP, L"Toggle WARP (F4)", 0, iY += 26 * 1.5, 170 * 1.5, 23 * 1.5, VK_F4 );
+    g_HUD.AddCheckBox( IDC_TOGGLEVISUALIZECASCADES, L"Visualize Cascades", 0, iY+=26 * 1.5, 170 * 1.5, 23 * 1.5, g_bVisualizeCascades, VK_F8 );
 
-    g_HUD.AddComboBox( IDC_DEPTHBUFFERFORMAT, 0, iY += 26, 170, 23, VK_F10, false, &g_DepthBufferFormatCombo );
+    g_HUD.AddComboBox( IDC_DEPTHBUFFERFORMAT, 0, iY += 26 * 1.5, 170 * 1.5, 23 * 1.5, VK_F10, false, &g_DepthBufferFormatCombo );
     g_DepthBufferFormatCombo->AddItem( L"32 bit Buffer", ULongToPtr( CASCADE_DXGI_FORMAT_R32_TYPELESS ) );
     g_DepthBufferFormatCombo->AddItem( L"16 bit Buffer", ULongToPtr( CASCADE_DXGI_FORMAT_R16_TYPELESS ) );
     g_DepthBufferFormatCombo->AddItem(  L"24 bit Buffer", ULongToPtr( CASCADE_DXGI_FORMAT_R24G8_TYPELESS ) );
@@ -249,39 +252,39 @@ void InitApp()
     WCHAR desc[256] = { 0 };
     swprintf_s( desc, L"Texture Size: %d ", g_CascadeConfig.m_iBufferSize ); 
 
-    g_HUD.AddStatic( IDC_BUFFER_SIZETEXT, desc, 0, iY+26, 30, 10);
-    g_HUD.AddSlider( IDC_BUFFER_SIZE, 0, iY+=46, 128, 15,1, 128, g_CascadeConfig.m_iBufferSize / 32 );
+    g_HUD.AddStatic( IDC_BUFFER_SIZETEXT, desc, 0, iY+26 * 1.5, 30 * 1.5, 10 * 1.5 );
+    g_HUD.AddSlider( IDC_BUFFER_SIZE, 0, iY+=46 * 1.5, 170 * 1.5, 15 * 1.5, 1, 128 * 1.5, g_CascadeConfig.m_iBufferSize / 32 );
 
-    g_HUD.AddStatic( IDC_PCF_SIZETEXT, L"PCF Blur: 3", 0, iY+16, 30, 10);
-    g_HUD.AddSlider( IDC_PCF_SIZE, 90, iY+=20, 64, 15,1, 16, g_CascadedShadow.m_iPCFBlurSize / 2 + 1 );
+    g_HUD.AddStatic( IDC_PCF_SIZETEXT, L"PCF Blur: 3", 0, iY+16 * 1.5, 30 * 1.5, 10 * 1.5 );
+    g_HUD.AddSlider( IDC_PCF_SIZE, 90 * 1.5, iY+=20 * 1.5, 64 * 1.5, 15 * 1.5,1, 16 * 1.5, g_CascadedShadow.m_iPCFBlurSize / 2 + 1 );
     
     swprintf_s(desc, L" Offset: %0.03f", g_CascadedShadow.m_fPCFOffset );
-    g_HUD.AddStatic( IDC_PCF_OFFSET_SIZETEXT, desc, 0, iY+16, 30, 10);
-    g_HUD.AddSlider( IDC_PCF_OFFSET_SIZE, 115, iY+=20, 50, 15,0, 50,  ( INT )( g_CascadedShadow.m_fPCFOffset * 1000.0f ) );
+    g_HUD.AddStatic( IDC_PCF_OFFSET_SIZETEXT, desc, 0, iY+16 * 1.5, 30 * 1.5, 10 * 1.5 );
+    g_HUD.AddSlider( IDC_PCF_OFFSET_SIZE, 115 * 1.5, iY+=20 * 1.5, 50 * 1.5, 15 * 1.5,0, 50 * 1.5,  ( INT )( g_CascadedShadow.m_fPCFOffset * 1000.0f ) );
 
     swprintf_s(desc, L"Cascade Blur %0.03f", g_CascadedShadow.m_fBlurBetweenCascadesAmount );
     bool bValue;
     if( g_CascadedShadow.m_iBlurBetweenCascades == 0 ) bValue = false;
     else bValue = true;
 
-    g_HUD.AddCheckBox( IDC_BLEND_BETWEEN_MAPS_CHECK, desc, 0, iY+15, 170, 23, bValue );
-    g_HUD.AddSlider( IDC_BLEND_MAPS_SLIDER, 40, iY+33, 100, 15, 0, 100, ( INT )
+    g_HUD.AddCheckBox( IDC_BLEND_BETWEEN_MAPS_CHECK, desc, 0, iY+15 * 1.5, 170 * 1.5, 23 * 1.5, bValue );
+    g_HUD.AddSlider( IDC_BLEND_MAPS_SLIDER, 40 * 1.5, iY+33 * 1.5, 100 * 1.5, 15 * 1.5, 0, 100 * 1.5, ( INT )
         ( g_CascadedShadow.m_fBlurBetweenCascadesAmount * 2000.0f ) );
     iY+=26;
 
     if( g_CascadedShadow.m_iDerivativeBasedOffset == 0 ) bValue = false;
     else bValue = true;
-    g_HUD.AddCheckBox( IDC_TOGGLE_DERIVATIVE_OFFSET, L"DDX, DDY offset", 0, iY+=26, 170, 23, bValue );
+    g_HUD.AddCheckBox( IDC_TOGGLE_DERIVATIVE_OFFSET, L"DDX, DDY offset", 0, iY+=26 * 1.5, 170 * 1.5, 23 * 1.5, bValue );
 
 
     WCHAR dta[60] = { 0 };
     
-    g_HUD.AddComboBox( IDC_SELECTED_SCENE, 0, iY+=26, 170, 23, VK_F8, false, &g_SceneSelectCombo );
+    g_HUD.AddComboBox( IDC_SELECTED_SCENE, 0, iY+=26 * 1.5, 170 * 1.5, 23 * 1.5, VK_F8, false, &g_SceneSelectCombo );
     g_SceneSelectCombo->AddItem( L"Power Plant", ULongToPtr( POWER_PLANT_SCENE ) );
     g_SceneSelectCombo->AddItem( L"Test Scene", ULongToPtr( TEST_SCENE ) );
 
 
-    g_HUD.AddComboBox( IDC_SELECTED_CAMERA, 0, iY +=26,  170, 23, VK_F9, false, &g_CameraSelectCombo );
+    g_HUD.AddComboBox( IDC_SELECTED_CAMERA, 0, iY +=26 * 1.5,  170 * 1.5, 23 * 1.5, VK_F9, false, &g_CameraSelectCombo );
     g_CameraSelectCombo->AddItem( L"Eye Camera", ULongToPtr( EYE_CAMERA ) );     
     g_CameraSelectCombo->AddItem( L"Light Camera", ULongToPtr( LIGHT_CAMERA) );     
     for( int index=0; index < g_CascadeConfig.m_nCascadeLevels; ++index ) 
@@ -293,25 +296,25 @@ void InitApp()
     g_HUD.AddCheckBox( IDC_MOVE_LIGHT_IN_TEXEL_INC, L"Fit Light to Texels", 
         0, iY+=26, 170, 23, g_bMoveLightTexelSize, VK_F8 );
     g_CascadedShadow.m_bMoveLightTexelSize = g_bMoveLightTexelSize;
-    g_HUD.AddComboBox( IDC_FIT_TO_CASCADE, 0, iY +=26,  170, 23, VK_F9, false, &g_FitToCascadesCombo );
+    g_HUD.AddComboBox( IDC_FIT_TO_CASCADE, 0, iY +=26 * 1.5,  170 * 1.5, 23 * 1.5, VK_F9, false, &g_FitToCascadesCombo );
     g_FitToCascadesCombo->AddItem( L"Fit Scene", ULongToPtr( FIT_TO_SCENE ) );
     g_FitToCascadesCombo->AddItem( L"Fit Cascades", ULongToPtr( FIT_TO_CASCADES ) );
     g_CascadedShadow.m_eSelectedCascadesFit = FIT_TO_SCENE;
     
-    g_HUD.AddComboBox( IDC_FIT_TO_NEARFAR, 0, iY +=26,  170, 23, VK_F9, false, &g_FitToNearFarCombo );
+    g_HUD.AddComboBox( IDC_FIT_TO_NEARFAR, 0, iY +=26 * 1.5,  170 * 1.5, 23 * 1.5, VK_F9, false, &g_FitToNearFarCombo );
     g_FitToNearFarCombo->AddItem( L"AABB/Scene NearFar", ULongToPtr( FIT_NEARFAR_SCENE_AABB ) );
     g_FitToNearFarCombo->AddItem( L"Pancaking", ULongToPtr( FIT_NEARFAR_PANCAKING ) );
     g_FitToNearFarCombo->AddItem( L"0:1 NearFar", ULongToPtr( FIT_NEARFAR_ZERO_ONE ) );
     g_FitToNearFarCombo->AddItem( L"AABB NearFar", ULongToPtr( FIT_NEARFAR_AABB ) );
     g_CascadedShadow.m_eSelectedNearFarFit =  FIT_NEARFAR_SCENE_AABB;
 
-    g_HUD.AddComboBox( IDC_CASCADE_SELECT, 0, iY +=26,  170, 23, VK_F9, false, &g_CascadeSelectionCombo );
+    g_HUD.AddComboBox( IDC_CASCADE_SELECT, 0, iY +=26 * 1.5,  170 * 1.5, 23 * 1.5, VK_F9, false, &g_CascadeSelectionCombo );
     g_CascadeSelectionCombo->AddItem( L"Map Selection", ULongToPtr( CASCADE_SELECTION_MAP ) );
     g_CascadeSelectionCombo->AddItem( L"Interval Selection", ULongToPtr( CASCADE_SELECTION_INTERVAL ) );
 
     g_CascadedShadow.m_eSelectedCascadeSelection = CASCADE_SELECTION_MAP;
 
-    g_HUD.AddComboBox( IDC_CASCADELEVELS, 0, iY += 26, 170, 23, VK_F11, false, &g_CascadeLevelsCombo );
+    g_HUD.AddComboBox( IDC_CASCADELEVELS, 0, iY += 26 * 1.5, 170 * 1.5, 23 * 1.5, VK_F11, false, &g_CascadeLevelsCombo );
     
     swprintf_s( dta, L"%d Level", 1 );
     g_CascadeLevelsCombo->AddItem (dta, ULongToPtr( L1COMBO+1 ) );
@@ -323,8 +326,8 @@ void InitApp()
    
     g_CascadeLevelsCombo->SetSelectedByIndex( g_CascadeConfig.m_nCascadeLevels-1 );
     
-    INT sp = 12;
-    iY+=20;
+    INT sp = 12 * 1.5;
+    iY+=20 * 1.5;
     WCHAR label[16] = { 0 };
     // Color the cascade labels similar to the visualization.
     D3DCOLOR tcolors[] = 
@@ -342,9 +345,9 @@ void InitApp()
     for( INT index=0; index < MAX_CASCADES; ++index ) 
     {
         swprintf_s( label,L"L%d: %d", ( index + 1 ), g_CascadedShadow.m_iCascadePartitionsZeroToOne[index] );
-        g_HUD.AddStatic( index+IDC_CASCADELEVEL1TEXT, label, 0, iY+sp, 30, 10);
+        g_HUD.AddStatic( index+IDC_CASCADELEVEL1TEXT, label, 0, iY+sp, 30 * 1.5, 10 * 1.5 );
         g_HUD.GetStatic( index+IDC_CASCADELEVEL1TEXT )->SetTextColor( tcolors[index] );
-        g_HUD.AddSlider( index+IDC_CASCADELEVEL1, 50, iY+=15, 100, 15,0, 100, g_CascadedShadow.m_iCascadePartitionsZeroToOne[index] );
+        g_HUD.AddSlider( index+IDC_CASCADELEVEL1, 50 * 1.5, iY+=15 * 1.5, 100 * 1.5, 15 * 1.5,0, 100 * 1.5, g_CascadedShadow.m_iCascadePartitionsZeroToOne[index] );
     }
 
     for( INT index=0; index < g_CascadeConfig.m_nCascadeLevels; ++index ) 
@@ -383,6 +386,28 @@ void CALLBACK OnFrameMove( double fTime, FLOAT fElapsedTime, void* pUserContext 
 
 
 //--------------------------------------------------------------------------------------
+// Format frame metrics text
+//--------------------------------------------------------------------------------------
+LPCWSTR GetFrameMetrics()
+{	
+	float dTDrawTotal = 0.0f;
+	for (GTS gts = GTS_BeginFrame; gts < GTS_EndFrame; gts = GTS( gts + 1 ))
+		dTDrawTotal += g_gpuProfiler.DtAvg( gts ) * 1000.0f;
+
+	const float zpassTime = g_gpuProfiler.DtAvg( GTS_ZPass ) * 1000.0f;
+	const float shadowCoverageTime = g_gpuProfiler.DtAvg( GTS_ShadowCoverage ) * 1000.0f;
+	const float shadowCastTime = g_gpuProfiler.DtAvg( GTS_ShadowCast ) * 1000.0f;
+	const float mainPassTime = g_gpuProfiler.DtAvg( GTS_MainPass ) * 1000.0f;
+
+	swprintf_s( g_frameMetrics,
+		256, L"ZPass: %.3f Shadow Coverage %.3f Shadow Pass %.3f MainPass %.3f Total frame time %.3f",
+		zpassTime, shadowCoverageTime, shadowCastTime, mainPassTime, dTDrawTotal );
+
+	return g_frameMetrics;
+}
+
+
+//--------------------------------------------------------------------------------------
 // Render the help and statistics text
 //--------------------------------------------------------------------------------------
 void RenderText()
@@ -393,6 +418,7 @@ void RenderText()
     g_pTxtHelper->SetInsertionPos( 2, 0 );
     g_pTxtHelper->SetForegroundColor( Colors::Yellow );
     g_pTxtHelper->DrawTextLine( DXUTGetFrameStats( DXUTIsVsyncEnabled() ) );
+	g_pTxtHelper->DrawTextLine( GetFrameMetrics() );
     g_pTxtHelper->DrawTextLine( DXUTGetDeviceStats() );
 
     // Draw help
@@ -772,7 +798,7 @@ HRESULT CreateD3DComponents( ID3D11Device* pd3dDevice )
     auto pd3dImmediateContext = DXUTGetD3D11DeviceContext();
     V_RETURN( g_DialogResourceManager.OnD3D11CreateDevice( pd3dDevice, pd3dImmediateContext ) );
     V_RETURN( g_D3DSettingsDlg.OnD3D11CreateDevice( pd3dDevice ) );
-    g_pTxtHelper = new CDXUTTextHelper( pd3dDevice, pd3dImmediateContext, &g_DialogResourceManager, 15 );
+    g_pTxtHelper = new CDXUTTextHelper( pd3dDevice, pd3dImmediateContext, &g_DialogResourceManager, 15 * 1.5f );
 
     static const XMVECTORF32 s_vecEye = { 100.0f, 5.0f, 5.0f, 0.f };
     XMFLOAT3 vMin = XMFLOAT3( -1000.0f, -1000.0f, -1000.0f );
@@ -797,7 +823,9 @@ HRESULT CreateD3DComponents( ID3D11Device* pd3dDevice )
     g_LightCamera.FrameMove( 0 );
 
     g_CascadedShadow.Init( pd3dDevice, g_pSelectedMesh, &g_ViewerCamera, &g_LightCamera, &g_CascadeConfig );
-    
+   
+	g_gpuProfiler.Init( pd3dDevice );
+
     return S_OK;
 }
 
@@ -819,6 +847,8 @@ HRESULT DestroyD3DComponents()
     g_D3DSettingsDlg.OnD3D11DestroyDevice();
     DXUTGetGlobalResourceCache().OnDestroyDevice();
     SAFE_DELETE( g_pTxtHelper );
+
+	g_gpuProfiler.Shutdown();
 
     g_CascadedShadow.DestroyAndDeallocateShadowResources();
     return S_OK;
@@ -867,10 +897,10 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 
     UpdateViewerCameraNearFar();
         
-    g_HUD.SetLocation( pBackBufferSurfaceDesc->Width - 170, 0 );
-    g_HUD.SetSize( 170, 170 );
-    g_SampleUI.SetLocation( pBackBufferSurfaceDesc->Width - 170, pBackBufferSurfaceDesc->Height - 300 );
-    g_SampleUI.SetSize( 170, 300 );
+    g_HUD.SetLocation( pBackBufferSurfaceDesc->Width - 170 * 1.5, 0 );
+    g_HUD.SetSize( 170 * 1.5, 170 * 1.5 );
+    g_SampleUI.SetLocation( pBackBufferSurfaceDesc->Width - 170 * 1.5, pBackBufferSurfaceDesc->Height - 300 * 1.5 );
+    g_SampleUI.SetSize( 170 * 1.5, 300 * 1.5 );
 
     return S_OK;
 }
@@ -882,7 +912,6 @@ HRESULT CALLBACK OnD3D11ResizedSwapChain( ID3D11Device* pd3dDevice, IDXGISwapCha
 void CALLBACK OnD3D11ReleasingSwapChain( void* pUserContext )
 {
     g_DialogResourceManager.OnD3D11ReleasingSwapChain();
-
 }
 
 
@@ -892,12 +921,7 @@ void CALLBACK OnD3D11ReleasingSwapChain( void* pUserContext )
 void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3dImmediateContext, double fTime,
                                   FLOAT fElapsedTime, void* pUserContext )
 {
-
-    if( g_D3DSettingsDlg.IsActive() )
-    {
-        g_D3DSettingsDlg.OnRender( fElapsedTime );
-        return;
-    }
+	g_gpuProfiler.BeginFrame( pd3dImmediateContext );
 
     auto pRTV = DXUTGetD3D11RenderTargetView();
     pd3dImmediateContext->ClearRenderTargetView( pRTV, Colors::MidnightBlue );
@@ -923,25 +947,36 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	g_CascadedShadow.RenderDepthPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera, &vp );
 	userAnnotation->EndEvent();
 
+	g_gpuProfiler.Timestamp( pd3dImmediateContext, GTS_ZPass );
+
 	userAnnotation->BeginEvent( L"Coverage Pass" );
 	g_CascadedShadow.CalculateShadowMapCoverage( pd3dImmediateContext, pSRV, g_pActiveCamera, &vp );
 	userAnnotation->EndEvent();
-
+	
+	g_gpuProfiler.Timestamp( pd3dImmediateContext, GTS_ShadowCoverage );
+	
 	userAnnotation->BeginEvent( L"Shadows Pass" );
     g_CascadedShadow.RenderShadowsForAllCascades( pd3dImmediateContext, g_pSelectedMesh );
 	userAnnotation->EndEvent();
 
+	g_gpuProfiler.Timestamp( pd3dImmediateContext, GTS_ShadowCast );
+
 	userAnnotation->BeginEvent( L"Main Pass" );
     g_CascadedShadow.RenderMainPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera, &vp, g_bVisualizeCascades );
 	userAnnotation->EndEvent();
-    
+
+	g_gpuProfiler.Timestamp( pd3dImmediateContext, GTS_MainPass );
+
     pd3dImmediateContext->RSSetViewports( 1, &vp);            
     pd3dImmediateContext->OMSetRenderTargets( 1, &pRTV, pDSV );
 
+	g_gpuProfiler.WaitForDataAndUpdate( pd3dImmediateContext );
     DXUT_BeginPerfEvent( DXUT_PERFEVENTCOLOR, L"HUD / Stats" );
 
     g_HUD.OnRender( fElapsedTime );
     g_SampleUI.OnRender( fElapsedTime );
     RenderText();
     DXUT_EndPerfEvent();
+
+	g_gpuProfiler.EndFrame( pd3dImmediateContext );
 }

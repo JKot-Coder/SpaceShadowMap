@@ -321,6 +321,26 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
     V_RETURN( pd3dDevice->CreateBuffer( &Desc, nullptr, &m_pcbGlobalConstantBuffer ) );
     DXUT_SetDebugName( m_pcbGlobalConstantBuffer, "CB_ALL_SHADOW_DATACB_ALL_SHADOW_DATA" );
 
+	const int covegrageMapSize = 4096;
+
+	CD3D11_TEXTURE2D_DESC sctd( DXGI_FORMAT_R32_TYPELESS,
+		covegrageMapSize,
+		covegrageMapSize,
+		1,
+		1,
+		D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS );
+
+	V_RETURN( pd3dDevice->CreateTexture2D( &sctd, nullptr, &m_pShadowCoverageMapTexture ) );
+	DXUT_SetDebugName( m_pShadowCoverageMapTexture, "ShadowCoverageMap" );
+
+	CD3D11_UNORDERED_ACCESS_VIEW_DESC scuavd( D3D11_UAV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R32_UINT );
+	V_RETURN( pd3dDevice->CreateUnorderedAccessView( m_pShadowCoverageMapTexture, &scuavd, &m_pShadowCoverageMapUAV ) );
+	DXUT_SetDebugName( m_pShadowCoverageMapUAV, "ShadowCoverageMap UAV" );
+
+	CD3D11_SHADER_RESOURCE_VIEW_DESC scsrvd( D3D11_SRV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R32_UINT, 0, 1 );
+	V_RETURN( pd3dDevice->CreateShaderResourceView( m_pShadowCoverageMapTexture, &scsrvd, &m_pShadowCoverageMapSRV ) );
+	DXUT_SetDebugName( m_pShadowCoverageMapSRV, "ShadowCoverageMap SRV" );
+
     return hr;
 }
 
@@ -512,26 +532,6 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources( ID3D11Devi
 		CD3D11_SHADER_RESOURCE_VIEW_DESC dsrvd( D3D11_SRV_DIMENSION_TEXTURE2D, SRVfmt, 0, 1 );
 		V_RETURN( pd3dDevice->CreateShaderResourceView( m_pCascadedShadowMapTexture, &dsrvd, &m_pCascadedShadowMapSRV ) );
 		DXUT_SetDebugName( m_pCascadedShadowMapSRV, "CSM ShadowMap SRV" );
-
-		const int covegrageMapSize = 128;
-
-		CD3D11_TEXTURE2D_DESC sctd( DXGI_FORMAT_R32_TYPELESS,
-			covegrageMapSize,
-			covegrageMapSize,
-			1,
-			1,
-			D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS );
-
-		V_RETURN( pd3dDevice->CreateTexture2D( &sctd, nullptr, &m_pShadowCoverageMapTexture ) );
-		DXUT_SetDebugName( m_pShadowCoverageMapTexture, "ShadowCoverageMap" );
-
-		CD3D11_UNORDERED_ACCESS_VIEW_DESC scuavd( D3D11_UAV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R32_UINT );
-		V_RETURN( pd3dDevice->CreateUnorderedAccessView( m_pShadowCoverageMapTexture, &scuavd, &m_pShadowCoverageMapUAV ) );
-		DXUT_SetDebugName( m_pShadowCoverageMapUAV, "ShadowCoverageMap UAV" );
-
-		CD3D11_SHADER_RESOURCE_VIEW_DESC scsrvd( D3D11_SRV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R32_UINT, 0, 1 );
-		V_RETURN( pd3dDevice->CreateShaderResourceView( m_pShadowCoverageMapTexture, &scsrvd, &m_pShadowCoverageMapSRV ) );
-		DXUT_SetDebugName( m_pShadowCoverageMapSRV, "ShadowCoverageMap SRV" );
     }
     return hr;
 

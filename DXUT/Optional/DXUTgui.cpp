@@ -247,8 +247,8 @@ void DrawText11DXUT( ID3D11Device* pd3dDevice, ID3D11DeviceContext* pd3d11Device
     float fCharTexSizeX = 0.010526315f;
     //float fGlyphSizeX = 14.0f / fBBWidth;
     //float fGlyphSizeY = 32.0f / fBBHeight;
-    float fGlyphSizeX = 15.0f / fBBWidth;
-    float fGlyphSizeY = 42.0f / fBBHeight;
+    float fGlyphSizeX = 15.0f * 1.5 / fBBWidth;
+    float fGlyphSizeY = 42.0f * 1.5 / fBBHeight;
 
 
     float fRectLeft = rcScreen.left / fBBWidth;

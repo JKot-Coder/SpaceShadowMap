@@ -384,7 +384,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="CascadedShadowsManager.cpp" />
+    <ClCompile Include="GpuProfiler.cpp" />
     <CLInclude Include="CascadedShadowsManager.h" />
+    <ClInclude Include="GpuProfiler.hpp" />
     <CLInclude Include="ShadowSampleMisc.h" />
     <CLInclude Include="WaitDlg.h" />
   </ItemGroup>
