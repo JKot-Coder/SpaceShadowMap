@@ -42,6 +42,7 @@ public:
 		ID3D11RenderTargetView* prtvBackBuffer,
 		ID3D11DepthStencilView* pdsvBackBuffer,
 		CDXUTSDKMesh* pMesh,
+		CFirstPersonCamera* pActiveCamera,
 		D3D11_VIEWPORT* dxutViewPort );
 
 	HRESULT CalculateShadowMapCoverage( 
@@ -146,7 +147,8 @@ private:
     CFirstPersonCamera*                 m_pViewerCamera;         
     CFirstPersonCamera*                 m_pLightCamera;         
 
-    ID3D11SamplerState*                 m_pSamLinear;
+    ID3D11SamplerState*                 m_pSamPointRenderTarget;
+	ID3D11SamplerState*                 m_pSamLinear;
     ID3D11SamplerState*                 m_pSamShadowPCF;
     ID3D11SamplerState*                 m_pSamShadowPoint;
 };

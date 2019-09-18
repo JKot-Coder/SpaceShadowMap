@@ -943,10 +943,8 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	CComPtr<ID3DUserDefinedAnnotation>	userAnnotation;
 	HRESULT hr = pd3dImmediateContext->QueryInterface( __uuidof(userAnnotation), reinterpret_cast<void**>(&userAnnotation) );
 
-	g_CascadedShadow.UpdateConstantBuffer( pd3dImmediateContext, g_pActiveCamera, &vp );
-
 	userAnnotation->BeginEvent( L"Depth Pass" );
-	g_CascadedShadow.RenderDepthPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, &vp );
+	g_CascadedShadow.RenderDepthPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera, &vp );
 	userAnnotation->EndEvent();
 
 	g_gpuProfiler.Timestamp( pd3dImmediateContext, GTS_ZPass );

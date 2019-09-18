@@ -32,6 +32,7 @@ static const XMVECTORF32 g_vZero = { 0.0f, 0.0f, 0.0f, 0.0f };
 //--------------------------------------------------------------------------------------
 CascadedShadowsManager::CascadedShadowsManager () 
                           : m_pVertexLayoutMesh( nullptr ),
+							m_pSamPointRenderTarget( nullptr ),
                             m_pSamLinear( nullptr ),
                             m_pSamShadowPCF( nullptr ),  
                             m_pSamShadowPoint( nullptr ),
@@ -351,6 +352,7 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
 HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources() 
 {
     SAFE_RELEASE( m_pVertexLayoutMesh );
+	SAFE_RELEASE( m_pSamPointRenderTarget );
     SAFE_RELEASE( m_pSamLinear );
     SAFE_RELEASE( m_pSamShadowPoint );
     SAFE_RELEASE( m_pSamShadowPCF );
@@ -410,6 +412,7 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources( ID3D11Devi
 
 		m_CopyOfCascadeConfig = *m_pCascadeConfig;
 
+		SAFE_RELEASE( m_pSamPointRenderTarget );
 		SAFE_RELEASE( m_pSamLinear );
 		SAFE_RELEASE( m_pSamShadowPCF );
 		SAFE_RELEASE( m_pSamShadowPoint );
@@ -431,6 +434,20 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources( ID3D11Devi
 		DXUT_SetDebugName( m_pDepthStencilStateEqual, "DepthTestEqual" );
 
 		D3D11_SAMPLER_DESC SamDesc;
+
+		SamDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		SamDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		SamDesc.MipLODBias = 0.0f;
+		SamDesc.MaxAnisotropy = 1;
+		SamDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+		SamDesc.BorderColor[0] = SamDesc.BorderColor[1] = SamDesc.BorderColor[2] = SamDesc.BorderColor[3] = 0;
+		SamDesc.MinLOD = 0;
+		SamDesc.MaxLOD = 0;
+		V_RETURN( pd3dDevice->CreateSamplerState( &SamDesc, &m_pSamPointRenderTarget ) );
+		DXUT_SetDebugName( m_pSamPointRenderTarget, "Point Render Target Sampler" );
+
 		SamDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 		SamDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
 		SamDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -1218,12 +1235,13 @@ HRESULT CascadedShadowsManager::RenderDepthPass( ID3D11DeviceContext* pd3dDevice
 	ID3D11RenderTargetView* prtvBackBuffer,
 	ID3D11DepthStencilView* pdsvBackBuffer,
 	CDXUTSDKMesh* pMesh,
+	CFirstPersonCamera* pActiveCamera,
 	D3D11_VIEWPORT* dxutViewPort )
 {
 	HRESULT hr = S_OK;
-
-	D3D11_MAPPED_SUBRESOURCE MappedResource;
 	ID3D11RenderTargetView* pnullView = nullptr;
+
+	UpdateConstantBuffer( pd3dDeviceContext, pActiveCamera, dxutViewPort );
 
 	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateZPass, 0 );
 	// We have a seperate render state for the actual rasterization because of different depth biases and Cull modes.
@@ -1271,6 +1289,8 @@ HRESULT CascadedShadowsManager::CalculateShadowMapCoverage(	ID3D11DeviceContext*
 	pd3dDeviceContext->CSSetUnorderedAccessViews( 0, 1, &m_pShadowCoverageMapUAV, nullptr );
 	pd3dDeviceContext->CSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
 	pd3dDeviceContext->CSSetShaderResources( 0, 1, &psrvBackBuffer );
+	pd3dDeviceContext->CSSetSamplers( 0, 1, &m_pSamPointRenderTarget );
+
 	pd3dDeviceContext->CSSetShader( m_pcsCalculateShadowCoverage[cascadeLevels], nullptr, 0 );
 	pd3dDeviceContext->Dispatch( numGroupsX, numGroupsY, 1 );
 
@@ -1305,7 +1325,6 @@ HRESULT CascadedShadowsManager::RenderShadowsForAllCascades( ID3D11DeviceContext
 	// Iterate over cascades and render shadows.
 	for (INT currentCascade = 0; currentCascade < m_CopyOfCascadeConfig.m_nCascadeLevels; ++currentCascade)
 	{
-
 		// Each cascade has its own viewport because we're storing all the cascades in one large texture.
 		pd3dDeviceContext->RSSetViewports( 1, &m_RenderVP[currentCascade] );
 
@@ -1320,6 +1339,7 @@ HRESULT CascadedShadowsManager::RenderShadowsForAllCascades( ID3D11DeviceContext
 		XMMATRIX matIdentity = XMMatrixIdentity();
 		XMStoreFloat4x4( &pcbAllShadowConstants->m_World, matIdentity );
 		pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
+
 		pd3dDeviceContext->IASetInputLayout( m_pVertexLayoutMesh );
 
 		// No pixel shader is bound as we're only writing out depth.
@@ -1351,6 +1371,8 @@ HRESULT CascadedShadowsManager::RenderMainPass( ID3D11DeviceContext* pd3dDeviceC
 {
 	HRESULT hr = S_OK;
 
+	UpdateConstantBuffer( pd3dDeviceContext, pActiveCamera, dxutViewPort );
+
 	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateEqual, 0 );
 	// We have a seperate render state for the actual rasterization because of different depth biases and Cull modes.
 	pd3dDeviceContext->RSSetState( m_prsScene );
@@ -1373,17 +1395,6 @@ HRESULT CascadedShadowsManager::RenderMainPass( ID3D11DeviceContext* pd3dDeviceC
 	}
 
 	XMMATRIX matWorldViewProjection = matCameraView * matCameraProj;
-
-	D3D11_MAPPED_SUBRESOURCE MappedResource;
-	V( pd3dDeviceContext->Map( m_pcbGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource ) );
-	auto pcbAllShadowConstants = reinterpret_cast<CB_ALL_SHADOW_DATA*>(MappedResource.pData);
-
-	XMStoreFloat4x4( &pcbAllShadowConstants->m_WorldViewProj, XMMatrixTranspose( matWorldViewProjection ) );
-	XMStoreFloat4x4( &pcbAllShadowConstants->m_Proj, XMMatrixTranspose( matCameraProj ) );
-	XMStoreFloat4x4( &pcbAllShadowConstants->m_WorldView, XMMatrixTranspose( matCameraView ) );
-
-	pcbAllShadowConstants->m_iVisualizeCascades = bVisualize;
-	pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
 
 	pd3dDeviceContext->PSSetSamplers( 0, 1, &m_pSamLinear );
 	pd3dDeviceContext->PSSetSamplers( 1, 1, &m_pSamLinear );
