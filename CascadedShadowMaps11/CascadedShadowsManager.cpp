@@ -1092,122 +1092,10 @@ HRESULT CascadedShadowsManager::InitFrame ( ID3D11Device* pd3dDevice )
     return S_OK;
 }
 
-
 //--------------------------------------------------------------------------------------
-// Render the cascades into a texture atlas.
+// Update global constan buffer.
 //--------------------------------------------------------------------------------------
-HRESULT CascadedShadowsManager::RenderShadowsForAllCascades ( ID3D11DeviceContext* pd3dDeviceContext, CDXUTSDKMesh* pMesh )
-{
-    HRESULT hr = S_OK;
-
-    pd3dDeviceContext->ClearDepthStencilView( m_pCascadedShadowMapDSV, D3D11_CLEAR_DEPTH, 1.0, 0 );
-    ID3D11RenderTargetView* pnullView = nullptr; 
-
-	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateZPass, 0 );
-    // Set a null render target so as not to render color.
-    pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView , m_pCascadedShadowMapDSV );
-
-    if ( m_eSelectedNearFarFit == FIT_NEARFAR_PANCAKING )
-    {
-        pd3dDeviceContext->RSSetState( m_prsShadowPancake );
-    }
-    else 
-    {
-        pd3dDeviceContext->RSSetState( m_prsShadow );
-    }
-    // Iterate over cascades and render shadows.
-    for( INT currentCascade=0; currentCascade < m_CopyOfCascadeConfig.m_nCascadeLevels; ++currentCascade ) 
-    {
-
-        // Each cascade has its own viewport because we're storing all the cascades in one large texture.
-        pd3dDeviceContext->RSSetViewports( 1, &m_RenderVP[currentCascade] );
-        
-        // We calculate the matrices in the Init function.
-        XMMATRIX matWorldViewProjection = m_matShadowView * m_matShadowProj[currentCascade];
-        
-        D3D11_MAPPED_SUBRESOURCE MappedResource;
-        V( pd3dDeviceContext->Map( m_pcbGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource ) );
-        auto pcbAllShadowConstants = reinterpret_cast<CB_ALL_SHADOW_DATA*>( MappedResource.pData );
-        XMStoreFloat4x4( &pcbAllShadowConstants->m_WorldViewProj, XMMatrixTranspose( matWorldViewProjection ) );
-        // The model was exported in world space, so we can pass the identity up as the world transform (transpose of ID == ID).
-        XMMATRIX matIdentity = XMMatrixIdentity();
-        XMStoreFloat4x4( &pcbAllShadowConstants->m_World, matIdentity );
-        pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
-        pd3dDeviceContext->IASetInputLayout( m_pVertexLayoutMesh );
-
-        // No pixel shader is bound as we're only writing out depth.
-        pd3dDeviceContext->VSSetShader( m_pvsRenderOrthoShadow, nullptr, 0 );
-        pd3dDeviceContext->PSSetShader( nullptr, nullptr, 0 );
-        pd3dDeviceContext->GSSetShader( nullptr, nullptr, 0 );
-        
-        pd3dDeviceContext->VSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
-
-        pMesh->Render( pd3dDeviceContext, 0, 1 );
-    }
-    
-    pd3dDeviceContext->RSSetState( nullptr );
-    pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, nullptr );
-
-    return hr;
-
-}
-
-//--------------------------------------------------------------------------------------
-// Depth pass
-//--------------------------------------------------------------------------------------
-HRESULT CascadedShadowsManager::RenderDepthPass( ID3D11DeviceContext* pd3dDeviceContext,
-	ID3D11RenderTargetView* prtvBackBuffer,
-	ID3D11DepthStencilView* pdsvBackBuffer,
-	CDXUTSDKMesh* pMesh,
-	CFirstPersonCamera* pActiveCamera,
-	D3D11_VIEWPORT* dxutViewPort )
-{
-	HRESULT hr = S_OK;
-
-	D3D11_MAPPED_SUBRESOURCE MappedResource;
-	ID3D11RenderTargetView* pnullView = nullptr;
-
-	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateZPass, 0 );
-	// We have a seperate render state for the actual rasterization because of different depth biases and Cull modes.
-	pd3dDeviceContext->RSSetState( m_prsScene );
-	// 
-	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, pdsvBackBuffer );
-	pd3dDeviceContext->RSSetViewports( 1, dxutViewPort );
-	pd3dDeviceContext->IASetInputLayout( m_pVertexLayoutMesh );
-
-	XMMATRIX matCameraProj = pActiveCamera->GetProjMatrix();
-	XMMATRIX matCameraView = pActiveCamera->GetViewMatrix();
-
-	// The user has the option to view the ortho shadow cameras.
-	if(m_eSelectedCamera >= ORTHO_CAMERA1)
-	{
-		// In the CAMERA_SELECTION enumeration, value 0 is EYE_CAMERA
-		// value 1 is LIGHT_CAMERA and 2 to 10 are the ORTHO_CAMERA values.
-		// Subtract to so that we can use the enum to index.
-		matCameraProj = m_matShadowProj[(int)m_eSelectedCamera - 2];
-		matCameraView = m_matShadowView;
-	}
-
-	XMMATRIX matWorldViewProjection = matCameraView * matCameraProj;
-
-	V( pd3dDeviceContext->Map( m_pcbGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource ) );
-	auto pcbAllShadowConstants = reinterpret_cast<CB_ALL_SHADOW_DATA*>(MappedResource.pData);
-	XMStoreFloat4x4( &pcbAllShadowConstants->m_WorldViewProj, XMMatrixTranspose( matWorldViewProjection ) );
-	pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
-
-	pd3dDeviceContext->VSSetShader( m_pvsRenderDepth, nullptr, 0 );
-	pd3dDeviceContext->PSSetShader(	m_ppsRenderDepth, nullptr, 0 );
-
-	pd3dDeviceContext->VSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
-	pd3dDeviceContext->PSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
-
-	pMesh->Render( pd3dDeviceContext, 0, 1 );
-
-	return hr;
-}
-
-HRESULT CascadedShadowsManager::CalculateShadowMapCoverage( ID3D11DeviceContext * pd3dDeviceContext, 
-	ID3D11ShaderResourceView* psrvBackBuffer, 
+HRESULT CascadedShadowsManager::UpdateConstantBuffer( ID3D11DeviceContext* pd3dDeviceContext,
 	CFirstPersonCamera* pActiveCamera,
 	D3D11_VIEWPORT* dxutViewPort )
 {
@@ -1219,152 +1107,6 @@ HRESULT CascadedShadowsManager::CalculateShadowMapCoverage( ID3D11DeviceContext 
 
 	// The user has the option to view the ortho shadow cameras.
 	if (m_eSelectedCamera >= ORTHO_CAMERA1)
-	{
-		// In the CAMERA_SELECTION enumeration, value 0 is EYE_CAMERA
-		// value 1 is LIGHT_CAMERA and 2 to 10 are the ORTHO_CAMERA values.
-		// Subtract to so that we can use the enum to index.
-		matCameraProj = m_matShadowProj[(int)m_eSelectedCamera - 2];
-		matCameraView = m_matShadowView;
-	}
-
-	XMMATRIX matWorldViewProjection = matCameraView * matCameraProj;
-
-	V(pd3dDeviceContext->Map(m_pcbGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource));
-	auto pcbAllShadowConstants = reinterpret_cast<CB_ALL_SHADOW_DATA*>(MappedResource.pData);
-	XMStoreFloat4x4(&pcbAllShadowConstants->m_WorldViewProj, XMMatrixTranspose(matWorldViewProjection));
-	XMStoreFloat4x4(&pcbAllShadowConstants->m_Proj, XMMatrixTranspose(matCameraProj));
-	XMStoreFloat4x4(&pcbAllShadowConstants->m_WorldView, XMMatrixTranspose(matCameraView));
-
-	// This is a floating point number that is used as the percentage to blur between maps.    
-	pcbAllShadowConstants->m_fCascadeBlendArea = m_fBlurBetweenCascadesAmount;
-	pcbAllShadowConstants->m_fTexelSize = 1.0f / (float)m_CopyOfCascadeConfig.m_iBufferSize;
-	pcbAllShadowConstants->m_fNativeTexelSizeInX = pcbAllShadowConstants->m_fTexelSize / m_CopyOfCascadeConfig.m_nCascadeLevels;
-	XMMATRIX matIdentity = XMMatrixIdentity();
-	XMStoreFloat4x4(&pcbAllShadowConstants->m_World, XMMatrixTranspose(matIdentity));
-	XMMATRIX matTextureScale = XMMatrixScaling(0.5f, -0.5f, 1.0f);
-
-	XMMATRIX matTextureTranslation = XMMatrixTranslation(.5f, .5f, 0.f);
-	XMMATRIX scaleToTile = XMMatrixScaling(1.0f / (float)m_pCascadeConfig->m_nCascadeLevels, 1.0, 1.0);
-
-	pcbAllShadowConstants->m_fShadowBiasFromGUI = m_fPCFOffset;
-	pcbAllShadowConstants->m_fShadowPartitionSize = 1.0f / (float)m_CopyOfCascadeConfig.m_nCascadeLevels;
-
-	XMStoreFloat4x4(&pcbAllShadowConstants->m_Shadow, XMMatrixTranspose(m_matShadowView));
-	for (int index = 0; index < m_CopyOfCascadeConfig.m_nCascadeLevels; ++index)
-	{
-		XMMATRIX mShadowTexture = m_matShadowProj[index] * matTextureScale * matTextureTranslation;
-		pcbAllShadowConstants->m_vCascadeScale[index].x = XMVectorGetX(mShadowTexture.r[0]);
-		pcbAllShadowConstants->m_vCascadeScale[index].y = XMVectorGetY(mShadowTexture.r[1]);
-		pcbAllShadowConstants->m_vCascadeScale[index].z = XMVectorGetZ(mShadowTexture.r[2]);
-		pcbAllShadowConstants->m_vCascadeScale[index].w = 1;
-
-		XMStoreFloat3(reinterpret_cast<XMFLOAT3*>(&pcbAllShadowConstants->m_vCascadeOffset[index]), mShadowTexture.r[3]);
-		pcbAllShadowConstants->m_vCascadeOffset[index].w = 0;
-	}
-
-	// Copy intervals for the depth interval selection method.
-	memcpy(pcbAllShadowConstants->m_fCascadeFrustumsEyeSpaceDepths,
-		m_fCascadePartitionsFrustum, MAX_CASCADES * 4);
-	for (int index = 0; index < MAX_CASCADES; ++index)
-	{
-		pcbAllShadowConstants->m_fCascadeFrustumsEyeSpaceDepthsFloat4[index].x = m_fCascadePartitionsFrustum[index];
-	}
-
-	// The border padding values keep the pixel shader from reading the borders during PCF filtering.
-	pcbAllShadowConstants->m_fMaxBorderPadding = (float)(m_pCascadeConfig->m_iBufferSize - 1.0f) /
-		(float)m_pCascadeConfig->m_iBufferSize;
-	pcbAllShadowConstants->m_fMinBorderPadding = (float)(1.0f) /
-		(float)m_pCascadeConfig->m_iBufferSize;
-
-	pcbAllShadowConstants->m_nCascadeLevels = m_CopyOfCascadeConfig.m_nCascadeLevels;
-	const float nearClip = pActiveCamera->GetNearClip();
-	const auto invProjection = XMMatrixTranspose( XMMatrixInverse( nullptr, XMMatrixTranspose( pActiveCamera->GetProjMatrix() ) ) );
-	const auto world = XMMatrixInverse( nullptr, pActiveCamera->GetViewMatrix() );
-
-	XMVECTOR nearPlanePoint[5] = {
-		XMVector3Transform( XMVectorSet( 0.0f,  0.0f, nearClip, 1.0f ), invProjection ),
-		XMVector3Transform( XMVectorSet( -1.0f,  1.0f, nearClip, 1.0f ), invProjection ),
-		XMVector3Transform( XMVectorSet( -1.0f, -1.0f, nearClip, 1.0f ), invProjection ),
-		XMVector3Transform( XMVectorSet( 1.0f,  1.0f, nearClip, 1.0f ), invProjection ),
-		XMVector3Transform( XMVectorSet( 1.0f, -1.0f, nearClip, 1.0f ), invProjection )
-	};
-
-	for (int i = 0; i < 5; i++)
-		nearPlanePoint[i] = XMVectorScale( nearPlanePoint[i], XMVectorGetW( nearPlanePoint[i] ) );
-
-	const float scale = 1.0f / XMVectorGetX( XMVector3Length( nearPlanePoint[0] ) );
-
-	XMVECTOR cameraDir[4];
-
-	for (int i = 0; i < 4; i++)
-	{
-		cameraDir[i] = XMVector3Transform( XMVectorScale( nearPlanePoint[i + 1], scale ), world );
-		cameraDir[i] = XMVectorScale( cameraDir[i], XMVectorGetW( cameraDir[i] ) );
-		cameraDir[i] = XMVectorSubtract( cameraDir[i], pActiveCamera->GetEyePt() );
-		XMStoreFloat4( &pcbAllShadowConstants->m_CameraDirs[i], cameraDir[i] );
-	}
-
-	XMStoreFloat4( &pcbAllShadowConstants->m_CameraPosition, pActiveCamera->GetEyePt() );
-	XMStoreFloat4( &pcbAllShadowConstants->m_ScreenSize, XMVectorSet( dxutViewPort->Width, dxutViewPort->Height, 1.0 / dxutViewPort->Width, 1.0 / dxutViewPort->Height ) );
-
-	pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
-
-	const unsigned int NUM_SAMPLES_PER_GROUP_X = 32;
-	const unsigned int NUM_SAMPLES_PER_GROUP_Y = 32;
-
-	const unsigned int screenWidth = dxutViewPort->Width;
-	const unsigned int screenHeight = dxutViewPort->Height;
-
-	// Get number of groups
-	const unsigned int numGroupsX = screenWidth / NUM_SAMPLES_PER_GROUP_X + (screenWidth % NUM_SAMPLES_PER_GROUP_X == 0);
-	const unsigned int numGroupsY = screenHeight / NUM_SAMPLES_PER_GROUP_Y + (screenHeight % NUM_SAMPLES_PER_GROUP_Y == 0);
-
-	const size_t cascadeLevels = std::max( m_CopyOfCascadeConfig.m_nCascadeLevels - 1, 0 );
-	const unsigned int black[] = { 0, 0, 0, 0 };
-
-	ID3D11RenderTargetView* pnullView = nullptr;
-	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, nullptr );
-	pd3dDeviceContext->ClearUnorderedAccessViewUint( m_pShadowCoverageMapUAV, black );
-
-	pd3dDeviceContext->CSSetUnorderedAccessViews( 0, 1, &m_pShadowCoverageMapUAV, nullptr );
-	pd3dDeviceContext->CSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
-	pd3dDeviceContext->CSSetShaderResources( 0, 1, &psrvBackBuffer );
-	pd3dDeviceContext->CSSetShader( m_pcsCalculateShadowCoverage[cascadeLevels], nullptr, 0 );
-	pd3dDeviceContext->Dispatch( numGroupsX, numGroupsY, 1 );
-
-	ID3D11ShaderResourceView* nv = nullptr;
-	pd3dDeviceContext->CSSetShaderResources( 0, 1, &nv );
-
-	return hr;
-}
-
-//--------------------------------------------------------------------------------------
-// Render the scene.
-//--------------------------------------------------------------------------------------
-HRESULT CascadedShadowsManager::RenderMainPass( ID3D11DeviceContext* pd3dDeviceContext,
-	ID3D11RenderTargetView* prtvBackBuffer,
-	ID3D11DepthStencilView* pdsvBackBuffer,
-	CDXUTSDKMesh* pMesh,
-	CFirstPersonCamera* pActiveCamera,
-	D3D11_VIEWPORT* dxutViewPort,
-	bool bVisualize )
-{
-	HRESULT hr = S_OK;
-	D3D11_MAPPED_SUBRESOURCE MappedResource;
-
-	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateEqual, 0 );
-	// We have a seperate render state for the actual rasterization because of different depth biases and Cull modes.
-	pd3dDeviceContext->RSSetState( m_prsScene );
-	// 
-	pd3dDeviceContext->OMSetRenderTargets( 1, &prtvBackBuffer, pdsvBackBuffer );
-	pd3dDeviceContext->RSSetViewports( 1, dxutViewPort );
-	pd3dDeviceContext->IASetInputLayout( m_pVertexLayoutMesh );
-
-	XMMATRIX matCameraProj = pActiveCamera->GetProjMatrix();
-	XMMATRIX matCameraView = pActiveCamera->GetViewMatrix();
-
-	// The user has the option to view the ortho shadow cameras.
-	if(m_eSelectedCamera >= ORTHO_CAMERA1)
 	{
 		// In the CAMERA_SELECTION enumeration, value 0 is EYE_CAMERA
 		// value 1 is LIGHT_CAMERA and 2 to 10 are the ORTHO_CAMERA values.
@@ -1398,7 +1140,7 @@ HRESULT CascadedShadowsManager::RenderMainPass( ID3D11DeviceContext* pd3dDeviceC
 	pcbAllShadowConstants->m_fShadowPartitionSize = 1.0f / (float)m_CopyOfCascadeConfig.m_nCascadeLevels;
 
 	XMStoreFloat4x4( &pcbAllShadowConstants->m_Shadow, XMMatrixTranspose( m_matShadowView ) );
-	for(int index = 0; index < m_CopyOfCascadeConfig.m_nCascadeLevels; ++index)
+	for (int index = 0; index < m_CopyOfCascadeConfig.m_nCascadeLevels; ++index)
 	{
 		XMMATRIX mShadowTexture = m_matShadowProj[index] * matTextureScale * matTextureTranslation;
 		pcbAllShadowConstants->m_vCascadeScale[index].x = XMVectorGetX( mShadowTexture.r[0] );
@@ -1413,7 +1155,7 @@ HRESULT CascadedShadowsManager::RenderMainPass( ID3D11DeviceContext* pd3dDeviceC
 	// Copy intervals for the depth interval selection method.
 	memcpy( pcbAllShadowConstants->m_fCascadeFrustumsEyeSpaceDepths,
 		m_fCascadePartitionsFrustum, MAX_CASCADES * 4 );
-	for(int index = 0; index < MAX_CASCADES; ++index)
+	for (int index = 0; index < MAX_CASCADES; ++index)
 	{
 		pcbAllShadowConstants->m_fCascadeFrustumsEyeSpaceDepthsFloat4[index].x = m_fCascadePartitionsFrustum[index];
 	}
@@ -1432,11 +1174,11 @@ HRESULT CascadedShadowsManager::RenderMainPass( ID3D11DeviceContext* pd3dDeviceC
 	XMStoreFloat3( reinterpret_cast<XMFLOAT3*>(&pcbAllShadowConstants->m_vLightDir), ep );
 	pcbAllShadowConstants->m_vLightDir.w = 1.0f;
 	pcbAllShadowConstants->m_nCascadeLevels = m_CopyOfCascadeConfig.m_nCascadeLevels;
-	pcbAllShadowConstants->m_iVisualizeCascades = bVisualize;
+
 
 	const float nearClip = pActiveCamera->GetNearClip();
 	const auto invProjection = XMMatrixTranspose( XMMatrixInverse( nullptr, XMMatrixTranspose( pActiveCamera->GetProjMatrix() ) ) );
-	const auto world =  XMMatrixInverse( nullptr, pActiveCamera->GetViewMatrix() ) ;
+	const auto world = XMMatrixInverse( nullptr, pActiveCamera->GetViewMatrix() );
 
 	XMVECTOR nearPlanePoint[5] = {
 		XMVector3Transform( XMVectorSet( 0.0f,  0.0f, nearClip, 1.0f ), invProjection ),
@@ -1445,15 +1187,15 @@ HRESULT CascadedShadowsManager::RenderMainPass( ID3D11DeviceContext* pd3dDeviceC
 		XMVector3Transform( XMVectorSet( 1.0f,  1.0f, nearClip, 1.0f ), invProjection ),
 		XMVector3Transform( XMVectorSet( 1.0f, -1.0f, nearClip, 1.0f ), invProjection )
 	};
-	
+
 	for (int i = 0; i < 5; i++)
 		nearPlanePoint[i] = XMVectorScale( nearPlanePoint[i], XMVectorGetW( nearPlanePoint[i] ) );
-	
+
 	const float scale = 1.0f / XMVectorGetX( XMVector3Length( nearPlanePoint[0] ) );
-	
+
 	XMVECTOR cameraDir[4];
-	
-	for (int i = 0; i < 4; i++) 
+
+	for (int i = 0; i < 4; i++)
 	{
 		cameraDir[i] = XMVector3Transform( XMVectorScale( nearPlanePoint[i + 1], scale ), world );
 		cameraDir[i] = XMVectorScale( cameraDir[i], XMVectorGetW( cameraDir[i] ) );
@@ -1462,8 +1204,185 @@ HRESULT CascadedShadowsManager::RenderMainPass( ID3D11DeviceContext* pd3dDeviceC
 	}
 
 	XMStoreFloat4( &pcbAllShadowConstants->m_CameraPosition, pActiveCamera->GetEyePt() );
-	XMStoreFloat4( &pcbAllShadowConstants->m_ScreenSize, XMVectorSet(dxutViewPort->Width, dxutViewPort->Height, 1.0 / dxutViewPort->Width, 1.0/ dxutViewPort->Height) );
+	XMStoreFloat4( &pcbAllShadowConstants->m_ScreenSize, XMVectorSet( dxutViewPort->Width, dxutViewPort->Height, 1.0 / dxutViewPort->Width, 1.0 / dxutViewPort->Height ) );
 
+	pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
+
+	return hr;
+}
+
+//--------------------------------------------------------------------------------------
+// Depth pass
+//--------------------------------------------------------------------------------------
+HRESULT CascadedShadowsManager::RenderDepthPass( ID3D11DeviceContext* pd3dDeviceContext,
+	ID3D11RenderTargetView* prtvBackBuffer,
+	ID3D11DepthStencilView* pdsvBackBuffer,
+	CDXUTSDKMesh* pMesh,
+	D3D11_VIEWPORT* dxutViewPort )
+{
+	HRESULT hr = S_OK;
+
+	D3D11_MAPPED_SUBRESOURCE MappedResource;
+	ID3D11RenderTargetView* pnullView = nullptr;
+
+	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateZPass, 0 );
+	// We have a seperate render state for the actual rasterization because of different depth biases and Cull modes.
+	pd3dDeviceContext->RSSetState( m_prsScene );
+
+	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, pdsvBackBuffer );
+	pd3dDeviceContext->RSSetViewports( 1, dxutViewPort );
+	pd3dDeviceContext->IASetInputLayout( m_pVertexLayoutMesh );
+
+	pd3dDeviceContext->VSSetShader( m_pvsRenderDepth, nullptr, 0 );
+	pd3dDeviceContext->PSSetShader(	m_ppsRenderDepth, nullptr, 0 );
+
+	pd3dDeviceContext->VSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
+	pd3dDeviceContext->PSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
+
+	pMesh->Render( pd3dDeviceContext, 0, 1 );
+
+	return hr;
+}
+
+HRESULT CascadedShadowsManager::CalculateShadowMapCoverage(	ID3D11DeviceContext* pd3dDeviceContext,
+	ID3D11ShaderResourceView* psrvBackBuffer,
+	D3D11_VIEWPORT* dxutViewPort )
+{
+	HRESULT hr = S_OK;
+	D3D11_MAPPED_SUBRESOURCE MappedResource;
+
+	const unsigned int NUM_SAMPLES_PER_GROUP_X = 32;
+	const unsigned int NUM_SAMPLES_PER_GROUP_Y = 32;
+
+	const unsigned int screenWidth = dxutViewPort->Width;
+	const unsigned int screenHeight = dxutViewPort->Height;
+
+	// Get number of groups
+	const unsigned int numGroupsX = screenWidth / NUM_SAMPLES_PER_GROUP_X + (screenWidth % NUM_SAMPLES_PER_GROUP_X == 0);
+	const unsigned int numGroupsY = screenHeight / NUM_SAMPLES_PER_GROUP_Y + (screenHeight % NUM_SAMPLES_PER_GROUP_Y == 0);
+
+	const size_t cascadeLevels = std::max( m_CopyOfCascadeConfig.m_nCascadeLevels - 1, 0 );
+	const unsigned int black[] = { 0, 0, 0, 0 };
+
+	ID3D11RenderTargetView* pnullView = nullptr;
+	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, nullptr );
+	pd3dDeviceContext->ClearUnorderedAccessViewUint( m_pShadowCoverageMapUAV, black );
+
+	pd3dDeviceContext->CSSetUnorderedAccessViews( 0, 1, &m_pShadowCoverageMapUAV, nullptr );
+	pd3dDeviceContext->CSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
+	pd3dDeviceContext->CSSetShaderResources( 0, 1, &psrvBackBuffer );
+	pd3dDeviceContext->CSSetShader( m_pcsCalculateShadowCoverage[cascadeLevels], nullptr, 0 );
+	pd3dDeviceContext->Dispatch( numGroupsX, numGroupsY, 1 );
+
+	ID3D11ShaderResourceView* nv = nullptr;
+	pd3dDeviceContext->CSSetShaderResources( 0, 1, &nv );
+
+	return hr;
+}
+
+//--------------------------------------------------------------------------------------
+// Render the cascades into a texture atlas.
+//--------------------------------------------------------------------------------------
+HRESULT CascadedShadowsManager::RenderShadowsForAllCascades( ID3D11DeviceContext* pd3dDeviceContext, CDXUTSDKMesh* pMesh )
+{
+	HRESULT hr = S_OK;
+
+	pd3dDeviceContext->ClearDepthStencilView( m_pCascadedShadowMapDSV, D3D11_CLEAR_DEPTH, 1.0, 0 );
+	ID3D11RenderTargetView* pnullView = nullptr;
+
+	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateZPass, 0 );
+	// Set a null render target so as not to render color.
+	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, m_pCascadedShadowMapDSV );
+
+	if (m_eSelectedNearFarFit == FIT_NEARFAR_PANCAKING)
+	{
+		pd3dDeviceContext->RSSetState( m_prsShadowPancake );
+	}
+	else
+	{
+		pd3dDeviceContext->RSSetState( m_prsShadow );
+	}
+	// Iterate over cascades and render shadows.
+	for (INT currentCascade = 0; currentCascade < m_CopyOfCascadeConfig.m_nCascadeLevels; ++currentCascade)
+	{
+
+		// Each cascade has its own viewport because we're storing all the cascades in one large texture.
+		pd3dDeviceContext->RSSetViewports( 1, &m_RenderVP[currentCascade] );
+
+		// We calculate the matrices in the Init function.
+		XMMATRIX matWorldViewProjection = m_matShadowView * m_matShadowProj[currentCascade];
+
+		D3D11_MAPPED_SUBRESOURCE MappedResource;
+		V( pd3dDeviceContext->Map( m_pcbGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource ) );
+		auto pcbAllShadowConstants = reinterpret_cast<CB_ALL_SHADOW_DATA*>(MappedResource.pData);
+		XMStoreFloat4x4( &pcbAllShadowConstants->m_WorldViewProj, XMMatrixTranspose( matWorldViewProjection ) );
+		// The model was exported in world space, so we can pass the identity up as the world transform (transpose of ID == ID).
+		XMMATRIX matIdentity = XMMatrixIdentity();
+		XMStoreFloat4x4( &pcbAllShadowConstants->m_World, matIdentity );
+		pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
+		pd3dDeviceContext->IASetInputLayout( m_pVertexLayoutMesh );
+
+		// No pixel shader is bound as we're only writing out depth.
+		pd3dDeviceContext->VSSetShader( m_pvsRenderOrthoShadow, nullptr, 0 );
+		pd3dDeviceContext->PSSetShader( nullptr, nullptr, 0 );
+		pd3dDeviceContext->GSSetShader( nullptr, nullptr, 0 );
+
+		pd3dDeviceContext->VSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
+
+		pMesh->Render( pd3dDeviceContext, 0, 1 );
+	}
+
+	pd3dDeviceContext->RSSetState( nullptr );
+	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, nullptr );
+
+	return hr;
+}
+
+//--------------------------------------------------------------------------------------
+// Render the scene.
+//--------------------------------------------------------------------------------------
+HRESULT CascadedShadowsManager::RenderMainPass( ID3D11DeviceContext* pd3dDeviceContext,
+	ID3D11RenderTargetView* prtvBackBuffer,
+	ID3D11DepthStencilView* pdsvBackBuffer,
+	CDXUTSDKMesh* pMesh,
+	CFirstPersonCamera* pActiveCamera,
+	D3D11_VIEWPORT* dxutViewPort,
+	bool bVisualize )
+{
+	HRESULT hr = S_OK;
+
+	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateEqual, 0 );
+	// We have a seperate render state for the actual rasterization because of different depth biases and Cull modes.
+	pd3dDeviceContext->RSSetState( m_prsScene );
+	// 
+	pd3dDeviceContext->OMSetRenderTargets( 1, &prtvBackBuffer, pdsvBackBuffer );
+	pd3dDeviceContext->RSSetViewports( 1, dxutViewPort );
+	pd3dDeviceContext->IASetInputLayout( m_pVertexLayoutMesh );
+
+	XMMATRIX matCameraProj = pActiveCamera->GetProjMatrix();
+	XMMATRIX matCameraView = pActiveCamera->GetViewMatrix();
+
+	// The user has the option to view the ortho shadow cameras.
+	if (m_eSelectedCamera >= ORTHO_CAMERA1)
+	{
+		// In the CAMERA_SELECTION enumeration, value 0 is EYE_CAMERA
+		// value 1 is LIGHT_CAMERA and 2 to 10 are the ORTHO_CAMERA values.
+		// Subtract to so that we can use the enum to index.
+		matCameraProj = m_matShadowProj[(int)m_eSelectedCamera - 2];
+		matCameraView = m_matShadowView;
+	}
+
+	XMMATRIX matWorldViewProjection = matCameraView * matCameraProj;
+
+	D3D11_MAPPED_SUBRESOURCE MappedResource;
+	V( pd3dDeviceContext->Map( m_pcbGlobalConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource ) );
+	auto pcbAllShadowConstants = reinterpret_cast<CB_ALL_SHADOW_DATA*>(MappedResource.pData);
+
+	XMStoreFloat4x4( &pcbAllShadowConstants->m_WorldViewProj, XMMatrixTranspose( matWorldViewProjection ) );
+	XMStoreFloat4x4( &pcbAllShadowConstants->m_Proj, XMMatrixTranspose( matCameraProj ) );
+	XMStoreFloat4x4( &pcbAllShadowConstants->m_WorldView, XMMatrixTranspose( matCameraView ) );
+
+	pcbAllShadowConstants->m_iVisualizeCascades = bVisualize;
 	pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
 
 	pd3dDeviceContext->PSSetSamplers( 0, 1, &m_pSamLinear );

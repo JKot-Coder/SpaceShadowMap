@@ -34,22 +34,22 @@ public:
     // This runs per frame.  This data could be cached when the cameras do not move.
     HRESULT InitFrame( ID3D11Device* pd3dDevice );
 
-    HRESULT RenderShadowsForAllCascades( ID3D11DeviceContext* pd3dDeviceContext, 
-                                         CDXUTSDKMesh* pMesh 
-                                       );
+	HRESULT UpdateConstantBuffer( ID3D11DeviceContext* pd3dDeviceContext,
+		CFirstPersonCamera* pActiveCamera,
+		D3D11_VIEWPORT* dxutViewPort );
 
 	HRESULT RenderDepthPass( ID3D11DeviceContext* pd3dDeviceContext,
 		ID3D11RenderTargetView* prtvBackBuffer,
 		ID3D11DepthStencilView* pdsvBackBuffer,
 		CDXUTSDKMesh* pMesh,
-		CFirstPersonCamera* pActiveCamera,
 		D3D11_VIEWPORT* dxutViewPort );
 
 	HRESULT CalculateShadowMapCoverage( 
 		ID3D11DeviceContext* pd3dDeviceContext, 
 		ID3D11ShaderResourceView* psrvBackBuffer,  
-		CFirstPersonCamera* pActiveCamera,
 		D3D11_VIEWPORT* dxutViewPort );
+
+	HRESULT RenderShadowsForAllCascades( ID3D11DeviceContext* pd3dDeviceContext, CDXUTSDKMesh* pMesh );
 
 	HRESULT RenderMainPass( ID3D11DeviceContext* pd3dDeviceContext,
 		ID3D11RenderTargetView* prtvBackBuffer,
