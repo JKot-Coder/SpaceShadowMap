@@ -407,7 +407,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ShadowUVPass.hlsl">
+    <None Include="ShadowSSUVPass.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

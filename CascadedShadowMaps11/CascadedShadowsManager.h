@@ -46,7 +46,12 @@ public:
 		CFirstPersonCamera* pActiveCamera,
 		D3D11_VIEWPORT* dxutViewPort );
 
-	HRESULT CalculateShadowMapCoverage( 
+	HRESULT ShadowSSUVPass(
+		ID3D11DeviceContext* pd3dDeviceContext,
+		ID3D11ShaderResourceView* psrvBackBuffer,
+		D3D11_VIEWPORT* dxutViewPort );
+
+	HRESULT ShadowMapCoveragePass( 
 		ID3D11DeviceContext* pd3dDeviceContext, 
 		ID3D11ShaderResourceView* psrvBackBuffer,  
 		D3D11_VIEWPORT* dxutViewPort );
@@ -123,6 +128,8 @@ private:
 	ID3DBlob*                           m_ppsRenderDepthBlob;
 	ID3D11ComputeShader*				m_pcsShadowCoverage[MAX_CASCADES];
 	ID3DBlob*							m_pcsShadowCoverageBlob[MAX_CASCADES];
+	ID3D11ComputeShader*				m_pcsShadowSSUV[MAX_CASCADES];
+	ID3DBlob*							m_pcsShadowSSUVBlob[MAX_CASCADES];
     ID3D11VertexShader*                 m_pvsRenderScene[MAX_CASCADES];
     ID3DBlob*                           m_pvsRenderSceneBlob[MAX_CASCADES];
     ID3D11PixelShader*                  m_ppsRenderSceneAllShaders[MAX_CASCADES][2][2][2];

@@ -14,10 +14,10 @@
     <None Include="..\..\DXUT11\Optional\directx.ico">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="ShadowUVPass.hlsl">
+    <None Include="ShadowCoveragePass.hlsl">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="ShadowCoveragePass.hlsl">
+    <None Include="ShadowSSUVPass.hlsl">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>

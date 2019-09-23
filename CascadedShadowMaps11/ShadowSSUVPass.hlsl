@@ -3,16 +3,14 @@
 //--------------------------------------------------------------------------------------
 // Globals
 //--------------------------------------------------------------------------------------
-static const uint COMPUTE_NUM_THREAD_X = 16;
-static const uint COMPUTE_NUM_THREAD_Y = 16;
-
-static const float2 COVERAGE_MAP_SIZE = float2(128, 128);
+static const uint COMPUTE_NUM_THREAD_X = 8;
+static const uint COMPUTE_NUM_THREAD_Y = 8;
 
 //--------------------------------------------------------------------------------------
 // Textures and Samplers
 //--------------------------------------------------------------------------------------
-RWTexture2D<uint>    g_txCoverageMap              : register(u0);
-Texture2D<float>	 g_txDepthMap		          : register(t0);
+RWTexture2D<float2>    g_txSSUVMap	: register(u0);
+Texture2D<float>	 g_txDepthMap	: register(t0);
 
 SamplerState DepthSampler : register(s0);
 
@@ -32,14 +30,22 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 	[unroll]
 	for (uint sampleId = 0; sampleId < 4; sampleId++)
 	{
+		static uint2 sampleOffsets[4] = { uint2(0, 1), uint2(1, 1), uint2(1, 0), uint2(0, 0) };
+		const uint2 outputIndex = dispatchSampleIndex + sampleOffsets[sampleId];
+
 		static const float EPS = 0.000001;
 		const float zwDepth = zwDepthGather4[sampleId];
+		
+		float2 shadowTexCoord = float2(-1, -1);
 
+		[branch]
 		if (zwDepth > 1.0 - EPS)
+		{
+			g_txSSUVMap[outputIndex] = shadowTexCoord;
 			continue;
+		}
 
 		const float linearDepth = m_mProj[3][2] / (zwDepth - m_mProj[2][2]);
-
 		const float4 worldPos = float4(m_CameraPosition.xyz + viewRay * linearDepth, 1.0);
 		const float2 vShadowTexCoordViewSpace = mul( worldPos, m_mShadow ).xy;
 
@@ -53,12 +59,15 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 			vShadowTexCoord.x *= m_fShadowPartitionSize;
 			vShadowTexCoord.x = (vShadowTexCoord.x + (float)iCascadeIndex) * m_fShadowPartitionSize;// precomputed (float)iCascadeIndex / (float)CASCADE_CNT
 
+			[branch]
 			if (min( vShadowTexCoord.x, vShadowTexCoord.y ) > m_fMinBorderPadding &&
 				max( vShadowTexCoord.x, vShadowTexCoord.y ) < m_fMaxBorderPadding)
 			{
-
+				shadowTexCoord = vShadowTexCoord;
 				break;
 			}
 		}
+
+		g_txSSUVMap[outputIndex] = shadowTexCoord;
 	}
 }

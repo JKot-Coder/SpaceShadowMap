@@ -69,6 +69,7 @@ CascadedShadowsManager::CascadedShadowsManager ()
         m_RenderVP[index].TopLeftX = 0;
         m_RenderVP[index].TopLeftY = 0;
         m_pvsRenderSceneBlob[index] = nullptr;
+		m_pcsShadowSSUVBlob[index] = nullptr;
 		m_pcsShadowCoverageBlob[index] = nullptr;
 		
         for( int x1 = 0; x1 < 2; ++x1 ) 
@@ -103,6 +104,7 @@ CascadedShadowsManager::~CascadedShadowsManager()
     {
         SAFE_RELEASE( m_pvsRenderSceneBlob[index] );
 		SAFE_RELEASE( m_pcsShadowCoverageBlob[index] );
+		SAFE_RELEASE( m_pcsShadowSSUVBlob[index] );
 
         for( int x1 = 0; x1 < 2; ++x1 ) 
         {
@@ -221,6 +223,17 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
         defines[3].Definition = "0";
         // We don't want to release the last pVertexShaderBuffer until we create the input layout. 
         
+		if (!m_pcsShadowSSUVBlob[iCascadeIndex])
+		{
+			V_RETURN( DXUTCompileFromFile(
+				L"ShadowSSUVPass.hlsl", defines, "main", m_ccsModel, D3DCOMPILE_ENABLE_STRICTNESS, 0, &m_pcsShadowSSUVBlob[iCascadeIndex] ) );
+		}
+		V_RETURN( pd3dDevice->CreateComputeShader(
+			m_pcsShadowSSUVBlob[iCascadeIndex]->GetBufferPointer(),
+			m_pcsShadowSSUVBlob[iCascadeIndex]->GetBufferSize(),
+			nullptr, &m_pcsShadowSSUV[iCascadeIndex] ) );
+		DXUT_SetDebugName( m_pcsShadowSSUV[iCascadeIndex], "Shadow SSUV" );
+
 		if ( !m_pcsShadowCoverageBlob[iCascadeIndex] )
 		{
 			V_RETURN( DXUTCompileFromFile(
@@ -387,6 +400,7 @@ HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources()
     { 
         SAFE_RELEASE( m_pvsRenderScene[iCascadeIndex] );
 		SAFE_RELEASE( m_pcsShadowCoverage[iCascadeIndex] );
+		SAFE_RELEASE( m_pcsShadowSSUV[iCascadeIndex] );
 
         for( INT iDerivativeIndex=0; iDerivativeIndex < 2; ++iDerivativeIndex ) 
         {
@@ -579,7 +593,7 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewScreenSpaceResources( ID3D1
 		SAFE_RELEASE( m_pShadowSSUVMapUAV );
 		SAFE_RELEASE( m_pShadowSSUVMapSRV );
 
-		CD3D11_TEXTURE2D_DESC sctd( DXGI_FORMAT_R16G16_UINT,
+		CD3D11_TEXTURE2D_DESC sctd( DXGI_FORMAT_R16G16_SNORM,
 			dxutViewPort->Width,
 			dxutViewPort->Height,
 			1,
@@ -589,11 +603,11 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewScreenSpaceResources( ID3D1
 		V_RETURN( pd3dDevice->CreateTexture2D( &sctd, nullptr, &m_pShadowSSUVMapTexture ) );
 		DXUT_SetDebugName( m_pShadowSSUVMapTexture, "Shadow SSUV" );
 
-		CD3D11_UNORDERED_ACCESS_VIEW_DESC scuavd( D3D11_UAV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R16G16_UINT );
+		CD3D11_UNORDERED_ACCESS_VIEW_DESC scuavd( D3D11_UAV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R16G16_SNORM );
 		V_RETURN( pd3dDevice->CreateUnorderedAccessView( m_pShadowSSUVMapTexture, &scuavd, &m_pShadowSSUVMapUAV ) );
 		DXUT_SetDebugName( m_pShadowSSUVMapUAV, "Shadow SSUV UAV" );
 
-		CD3D11_SHADER_RESOURCE_VIEW_DESC scsrvd( D3D11_SRV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R16G16_UINT, 0, 1 );
+		CD3D11_SHADER_RESOURCE_VIEW_DESC scsrvd( D3D11_SRV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R16G16_SNORM, 0, 1 );
 		V_RETURN( pd3dDevice->CreateShaderResourceView( m_pShadowSSUVMapTexture, &scsrvd, &m_pShadowSSUVMapSRV ) );
 		DXUT_SetDebugName( m_pShadowSSUVMapSRV, "Shadow SSUV SRV" );
 
@@ -1314,7 +1328,43 @@ HRESULT CascadedShadowsManager::RenderDepthPass( ID3D11DeviceContext* pd3dDevice
 	return hr;
 }
 
-HRESULT CascadedShadowsManager::CalculateShadowMapCoverage(	ID3D11DeviceContext* pd3dDeviceContext,
+HRESULT CascadedShadowsManager::ShadowSSUVPass( ID3D11DeviceContext* pd3dDeviceContext,
+	ID3D11ShaderResourceView* psrvBackBuffer,
+	D3D11_VIEWPORT* dxutViewPort )
+{
+	HRESULT hr = S_OK;
+	D3D11_MAPPED_SUBRESOURCE MappedResource;
+
+	const unsigned int NUM_SAMPLES_PER_GROUP_X = 16;
+	const unsigned int NUM_SAMPLES_PER_GROUP_Y = 16;
+
+	const unsigned int screenWidth = dxutViewPort->Width;
+	const unsigned int screenHeight = dxutViewPort->Height;
+
+	// Get number of groups
+	const unsigned int numGroupsX = screenWidth / NUM_SAMPLES_PER_GROUP_X + (screenWidth % NUM_SAMPLES_PER_GROUP_X == 0);
+	const unsigned int numGroupsY = screenHeight / NUM_SAMPLES_PER_GROUP_Y + (screenHeight % NUM_SAMPLES_PER_GROUP_Y == 0);
+
+	const size_t cascadeLevels = std::max( m_CopyOfCascadeConfig.m_nCascadeLevels - 1, 0 );
+	
+	ID3D11RenderTargetView* pnullView = nullptr;
+	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, nullptr );
+
+	pd3dDeviceContext->CSSetUnorderedAccessViews( 0, 1, &m_pShadowSSUVMapUAV, nullptr );
+	pd3dDeviceContext->CSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
+	pd3dDeviceContext->CSSetShaderResources( 0, 1, &psrvBackBuffer );
+	pd3dDeviceContext->CSSetSamplers( 0, 1, &m_pSamPointRenderTarget );
+
+	pd3dDeviceContext->CSSetShader( m_pcsShadowSSUV[cascadeLevels], nullptr, 0 );
+	pd3dDeviceContext->Dispatch( numGroupsX, numGroupsY, 1 );
+
+	ID3D11ShaderResourceView* nv = nullptr;
+	pd3dDeviceContext->CSSetShaderResources( 0, 1, &nv );
+
+	return hr;
+}
+
+HRESULT CascadedShadowsManager::ShadowMapCoveragePass(	ID3D11DeviceContext* pd3dDeviceContext,
 	ID3D11ShaderResourceView* psrvBackBuffer,
 	D3D11_VIEWPORT* dxutViewPort )
 {
