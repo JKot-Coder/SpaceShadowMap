@@ -930,8 +930,6 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
     auto pDSV = DXUTGetD3D11DepthStencilView();
     pd3dImmediateContext->ClearDepthStencilView( pDSV, D3D11_CLEAR_DEPTH, 1.0, 0 );
 
-    g_CascadedShadow.InitFrame( pd3dDevice );
-
 	D3D11_VIEWPORT vp;
 	vp.Width = (FLOAT)DXUTGetDXGIBackBufferSurfaceDesc()->Width;
 	vp.Height = (FLOAT)DXUTGetDXGIBackBufferSurfaceDesc()->Height;
@@ -939,6 +937,8 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	vp.MaxDepth = 1;
 	vp.TopLeftX = 0;
 	vp.TopLeftY = 0;
+
+    g_CascadedShadow.InitFrame( pd3dDevice, &vp );
 
 	CComPtr<ID3DUserDefinedAnnotation>	userAnnotation;
 	HRESULT hr = pd3dImmediateContext->QueryInterface( __uuidof(userAnnotation), reinterpret_cast<void**>(&userAnnotation) );

@@ -32,7 +32,7 @@ public:
     HRESULT DestroyAndDeallocateShadowResources();
 
     // This runs per frame.  This data could be cached when the cameras do not move.
-    HRESULT InitFrame( ID3D11Device* pd3dDevice );
+    HRESULT InitFrame( ID3D11Device* pd3dDevice, D3D11_VIEWPORT* dxutViewPort );
 
 	HRESULT UpdateConstantBuffer( ID3D11DeviceContext* pd3dDeviceContext,
 		CFirstPersonCamera* pActiveCamera,
@@ -98,6 +98,8 @@ private:
 
     HRESULT ReleaseAndAllocateNewShadowResources( ID3D11Device* pd3dDevice );  // This is called when cascade config changes. 
 
+	HRESULT ReleaseAndAllocateNewScreenSpaceResources( ID3D11Device* pd3dDevice, D3D11_VIEWPORT* dxutViewPort );  // This is called when screen size changes.
+
     DirectX::XMVECTOR                   m_vSceneAABBMin;
     DirectX::XMVECTOR                   m_vSceneAABBMax;
                                                                                // For example: when the shadow buffer size changes.
@@ -119,18 +121,21 @@ private:
 	ID3DBlob*                           m_pvsRenderDepthBlob;
 	ID3D11PixelShader*                  m_ppsRenderDepth;
 	ID3DBlob*                           m_ppsRenderDepthBlob;
-	ID3D11ComputeShader*				m_pcsCalculateShadowCoverage[MAX_CASCADES];
-	ID3DBlob*							m_pcsCalculateShadowCoverageBlob[MAX_CASCADES];
+	ID3D11ComputeShader*				m_pcsShadowCoverage[MAX_CASCADES];
+	ID3DBlob*							m_pcsShadowCoverageBlob[MAX_CASCADES];
     ID3D11VertexShader*                 m_pvsRenderScene[MAX_CASCADES];
     ID3DBlob*                           m_pvsRenderSceneBlob[MAX_CASCADES];
     ID3D11PixelShader*                  m_ppsRenderSceneAllShaders[MAX_CASCADES][2][2][2];
     ID3DBlob*                           m_ppsRenderSceneAllShadersBlob[MAX_CASCADES][2][2][2];
     ID3D11Texture2D*                    m_pCascadedShadowMapTexture;
+	ID3D11DepthStencilView*             m_pCascadedShadowMapDSV;
+	ID3D11ShaderResourceView*           m_pCascadedShadowMapSRV;
+	ID3D11Texture2D*                    m_pShadowSSUVMapTexture;
+	ID3D11UnorderedAccessView*          m_pShadowSSUVMapUAV;
+	ID3D11ShaderResourceView*           m_pShadowSSUVMapSRV;
 	ID3D11Texture2D*					m_pShadowCoverageMapTexture;
 	ID3D11UnorderedAccessView*          m_pShadowCoverageMapUAV;
 	ID3D11ShaderResourceView*           m_pShadowCoverageMapSRV;
-    ID3D11DepthStencilView*             m_pCascadedShadowMapDSV;
-    ID3D11ShaderResourceView*           m_pCascadedShadowMapSRV;
 
     ID3D11Buffer*                       m_pcbGlobalConstantBuffer; // All VS and PS constants are in the same buffer.  
                                                           // An actual title would break this up into multiple 

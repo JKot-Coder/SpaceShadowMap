@@ -69,7 +69,7 @@ CascadedShadowsManager::CascadedShadowsManager ()
         m_RenderVP[index].TopLeftX = 0;
         m_RenderVP[index].TopLeftY = 0;
         m_pvsRenderSceneBlob[index] = nullptr;
-		m_pcsCalculateShadowCoverageBlob[index] = nullptr;
+		m_pcsShadowCoverageBlob[index] = nullptr;
 		
         for( int x1 = 0; x1 < 2; ++x1 ) 
         {
@@ -102,7 +102,7 @@ CascadedShadowsManager::~CascadedShadowsManager()
     for ( int index=0; index< MAX_CASCADES; ++index ) 
     {
         SAFE_RELEASE( m_pvsRenderSceneBlob[index] );
-		SAFE_RELEASE( m_pcsCalculateShadowCoverageBlob[index] );
+		SAFE_RELEASE( m_pcsShadowCoverageBlob[index] );
 
         for( int x1 = 0; x1 < 2; ++x1 ) 
         {
@@ -221,16 +221,16 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
         defines[3].Definition = "0";
         // We don't want to release the last pVertexShaderBuffer until we create the input layout. 
         
-		if ( !m_pcsCalculateShadowCoverageBlob[iCascadeIndex] )
+		if ( !m_pcsShadowCoverageBlob[iCascadeIndex] )
 		{
 			V_RETURN( DXUTCompileFromFile(
-				L"CalculateShadowCoverage.hlsl", defines, "main", m_ccsModel, D3DCOMPILE_ENABLE_STRICTNESS, 0, &m_pcsCalculateShadowCoverageBlob[iCascadeIndex] ) );
+				L"ShadowCoveragePass.hlsl", defines, "main", m_ccsModel, D3DCOMPILE_ENABLE_STRICTNESS, 0, &m_pcsShadowCoverageBlob[iCascadeIndex] ) );
 		}
 		V_RETURN( pd3dDevice->CreateComputeShader(
-			m_pcsCalculateShadowCoverageBlob[iCascadeIndex]->GetBufferPointer(), 
-			m_pcsCalculateShadowCoverageBlob[iCascadeIndex]->GetBufferSize(),
-			nullptr, &m_pcsCalculateShadowCoverage[iCascadeIndex] ));
-		DXUT_SetDebugName( m_pcsCalculateShadowCoverage[iCascadeIndex], "CalculateShadowCoverage" );
+			m_pcsShadowCoverageBlob[iCascadeIndex]->GetBufferPointer(), 
+			m_pcsShadowCoverageBlob[iCascadeIndex]->GetBufferSize(),
+			nullptr, &m_pcsShadowCoverage[iCascadeIndex] ));
+		DXUT_SetDebugName( m_pcsShadowCoverage[iCascadeIndex], "ShadowCoverage" );
 
         if ( !m_pvsRenderSceneBlob[iCascadeIndex] ) 
         {
@@ -342,6 +342,7 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
 	V_RETURN( pd3dDevice->CreateShaderResourceView( m_pShadowCoverageMapTexture, &scsrvd, &m_pShadowCoverageMapSRV ) );
 	DXUT_SetDebugName( m_pShadowCoverageMapSRV, "ShadowCoverageMap SRV" );
 
+
     return hr;
 }
 
@@ -356,6 +357,10 @@ HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources()
     SAFE_RELEASE( m_pSamLinear );
     SAFE_RELEASE( m_pSamShadowPoint );
     SAFE_RELEASE( m_pSamShadowPCF );
+
+	SAFE_RELEASE( m_pShadowSSUVMapTexture );
+	SAFE_RELEASE( m_pShadowSSUVMapUAV );
+	SAFE_RELEASE( m_pShadowSSUVMapSRV );
 
     SAFE_RELEASE( m_pCascadedShadowMapTexture );
     SAFE_RELEASE( m_pCascadedShadowMapDSV );
@@ -381,7 +386,7 @@ HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources()
     for( INT iCascadeIndex=0; iCascadeIndex < MAX_CASCADES; ++iCascadeIndex ) 
     { 
         SAFE_RELEASE( m_pvsRenderScene[iCascadeIndex] );
-		SAFE_RELEASE( m_pcsCalculateShadowCoverage[iCascadeIndex] );
+		SAFE_RELEASE( m_pcsShadowCoverage[iCascadeIndex] );
 
         for( INT iDerivativeIndex=0; iDerivativeIndex < 2; ++iDerivativeIndex ) 
         {
@@ -549,8 +554,51 @@ HRESULT CascadedShadowsManager::ReleaseAndAllocateNewShadowResources( ID3D11Devi
 		CD3D11_SHADER_RESOURCE_VIEW_DESC dsrvd( D3D11_SRV_DIMENSION_TEXTURE2D, SRVfmt, 0, 1 );
 		V_RETURN( pd3dDevice->CreateShaderResourceView( m_pCascadedShadowMapTexture, &dsrvd, &m_pCascadedShadowMapSRV ) );
 		DXUT_SetDebugName( m_pCascadedShadowMapSRV, "CSM ShadowMap SRV" );
+
     }
     return hr;
+
+}
+
+//--------------------------------------------------------------------------------------
+// Update screen space resources
+//--------------------------------------------------------------------------------------
+HRESULT CascadedShadowsManager::ReleaseAndAllocateNewScreenSpaceResources( ID3D11Device* pd3dDevice, D3D11_VIEWPORT* dxutViewPort )
+{
+	HRESULT hr = S_OK;
+
+	D3D11_TEXTURE2D_DESC desc = { -1, -1 };
+
+	if (m_pShadowSSUVMapTexture)
+		m_pShadowSSUVMapTexture->GetDesc( &desc );
+
+	// If screen size is changed
+	if (desc.Width != dxutViewPort->Width || desc.Height != dxutViewPort->Height)
+	{
+		SAFE_RELEASE( m_pShadowSSUVMapTexture );
+		SAFE_RELEASE( m_pShadowSSUVMapUAV );
+		SAFE_RELEASE( m_pShadowSSUVMapSRV );
+
+		CD3D11_TEXTURE2D_DESC sctd( DXGI_FORMAT_R16G16_UINT,
+			dxutViewPort->Width,
+			dxutViewPort->Height,
+			1,
+			1,
+			D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS );
+
+		V_RETURN( pd3dDevice->CreateTexture2D( &sctd, nullptr, &m_pShadowSSUVMapTexture ) );
+		DXUT_SetDebugName( m_pShadowSSUVMapTexture, "Shadow SSUV" );
+
+		CD3D11_UNORDERED_ACCESS_VIEW_DESC scuavd( D3D11_UAV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R16G16_UINT );
+		V_RETURN( pd3dDevice->CreateUnorderedAccessView( m_pShadowSSUVMapTexture, &scuavd, &m_pShadowSSUVMapUAV ) );
+		DXUT_SetDebugName( m_pShadowSSUVMapUAV, "Shadow SSUV UAV" );
+
+		CD3D11_SHADER_RESOURCE_VIEW_DESC scsrvd( D3D11_SRV_DIMENSION_TEXTURE2D, DXGI_FORMAT_R16G16_UINT, 0, 1 );
+		V_RETURN( pd3dDevice->CreateShaderResourceView( m_pShadowSSUVMapTexture, &scsrvd, &m_pShadowSSUVMapSRV ) );
+		DXUT_SetDebugName( m_pShadowSSUVMapSRV, "Shadow SSUV SRV" );
+
+	}
+	return hr;
 
 }
 
@@ -898,10 +946,11 @@ void CascadedShadowsManager::ComputeNearAndFar( FLOAT& fNearPlane,
 // This function is where the real work is done. We determine the matricies and constants used in 
 // shadow generation and scene generation.
 //--------------------------------------------------------------------------------------
-HRESULT CascadedShadowsManager::InitFrame ( ID3D11Device* pd3dDevice ) 
+HRESULT CascadedShadowsManager::InitFrame ( ID3D11Device* pd3dDevice, D3D11_VIEWPORT* dxutViewPort )
 {
-   
+
     ReleaseAndAllocateNewShadowResources( pd3dDevice );
+	ReleaseAndAllocateNewScreenSpaceResources( pd3dDevice, dxutViewPort );
 
     XMMATRIX matViewCameraProjection = m_pViewerCamera->GetProjMatrix();
     XMMATRIX matViewCameraView = m_pViewerCamera->GetViewMatrix();
@@ -1294,7 +1343,7 @@ HRESULT CascadedShadowsManager::CalculateShadowMapCoverage(	ID3D11DeviceContext*
 	pd3dDeviceContext->CSSetShaderResources( 0, 1, &psrvBackBuffer );
 	pd3dDeviceContext->CSSetSamplers( 0, 1, &m_pSamPointRenderTarget );
 
-	pd3dDeviceContext->CSSetShader( m_pcsCalculateShadowCoverage[cascadeLevels], nullptr, 0 );
+	pd3dDeviceContext->CSSetShader( m_pcsShadowCoverage[cascadeLevels], nullptr, 0 );
 	pd3dDeviceContext->Dispatch( numGroupsX, numGroupsY, 1 );
 
 	ID3D11ShaderResourceView* nv = nullptr;

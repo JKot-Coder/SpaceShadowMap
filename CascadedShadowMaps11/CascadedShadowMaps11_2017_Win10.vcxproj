@@ -407,8 +407,12 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="CalculateShadowCoverage.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compute</ShaderType>
+    <None Include="ShadowUVPass.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ShadowCoveragePass.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
