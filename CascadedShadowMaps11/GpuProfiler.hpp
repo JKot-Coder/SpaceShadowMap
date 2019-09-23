@@ -34,6 +34,7 @@ struct ID3D11Query;
 enum GTS
 {
 	GTS_BeginFrame,
+	GTS_FrameInit,
 	GTS_ZPass,
 	GTS_ShadowCoverage,
 	GTS_ShadowCast,

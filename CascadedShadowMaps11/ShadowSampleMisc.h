@@ -93,7 +93,7 @@ struct CB_ALL_SHADOW_DATA
     FLOAT       m_fMaxBorderPadding;
     FLOAT       m_fShadowBiasFromGUI;  // A shadow map offset to deal with self shadow artifacts.  
                                         //These artifacts are aggravated by PCF.
-    FLOAT       m_fShadowPartitionSize; 
+    FLOAT       m_fShadowPartitionSize;  // precomputed (float)iCascadeIndex / (float)CASCADE_CNT
     FLOAT       m_fCascadeBlendArea; // Amount to overlap when blending between cascades.
     FLOAT       m_fTexelSize; // Shadow map texel size.
     FLOAT       m_fNativeTexelSizeInX; // Texel size in native map ( textures are packed ).

@@ -943,6 +943,12 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	CComPtr<ID3DUserDefinedAnnotation>	userAnnotation;
 	HRESULT hr = pd3dImmediateContext->QueryInterface( __uuidof(userAnnotation), reinterpret_cast<void**>(&userAnnotation) );
 
+	// Warm up gpu
+	for (int i = 0; i < 80; i++)
+		g_CascadedShadow.RenderDepthPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera, &vp );
+	
+	g_gpuProfiler.Timestamp( pd3dImmediateContext, GTS_FrameInit );
+
 	userAnnotation->BeginEvent( L"Depth Pass" );
 	g_CascadedShadow.RenderDepthPass( pd3dImmediateContext, pRTV, pDSV, g_pSelectedMesh, g_pActiveCamera, &vp );
 	userAnnotation->EndEvent();
@@ -956,7 +962,7 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	g_gpuProfiler.Timestamp( pd3dImmediateContext, GTS_ShadowCoverage );
 	
 	userAnnotation->BeginEvent( L"Shadows Pass" );
-    g_CascadedShadow.RenderShadowsForAllCascades( pd3dImmediateContext, g_pSelectedMesh );
+	g_CascadedShadow.RenderShadowsForAllCascades( pd3dImmediateContext, g_pSelectedMesh );
 	userAnnotation->EndEvent();
 
 	g_gpuProfiler.Timestamp( pd3dImmediateContext, GTS_ShadowCast );

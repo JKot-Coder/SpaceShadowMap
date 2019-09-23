@@ -36,7 +36,8 @@ public:
 
 	HRESULT UpdateConstantBuffer( ID3D11DeviceContext* pd3dDeviceContext,
 		CFirstPersonCamera* pActiveCamera,
-		D3D11_VIEWPORT* dxutViewPort );
+		D3D11_VIEWPORT* dxutViewPort,
+		bool bVisualize );
 
 	HRESULT RenderDepthPass( ID3D11DeviceContext* pd3dDeviceContext,
 		ID3D11RenderTargetView* prtvBackBuffer,

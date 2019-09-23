@@ -30,10 +30,12 @@
 #define ErrorPrintf printf
 #define DebugPrintf printf
 
+static const auto startTime = std::chrono::high_resolution_clock::now();
+
 float Time()	// Retrieve time in seconds, using QueryPerformanceCounter or whatever
 {
 	auto now = std::chrono::high_resolution_clock::now();
-	return std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count() * 1e-6f;
+	return std::chrono::duration_cast<std::chrono::microseconds>(now - startTime).count() * 1e-6f;
 }
 
 CGpuProfiler::CGpuProfiler ()

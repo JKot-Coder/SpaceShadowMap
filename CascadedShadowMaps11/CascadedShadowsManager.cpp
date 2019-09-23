@@ -1114,7 +1114,8 @@ HRESULT CascadedShadowsManager::InitFrame ( ID3D11Device* pd3dDevice )
 //--------------------------------------------------------------------------------------
 HRESULT CascadedShadowsManager::UpdateConstantBuffer( ID3D11DeviceContext* pd3dDeviceContext,
 	CFirstPersonCamera* pActiveCamera,
-	D3D11_VIEWPORT* dxutViewPort )
+	D3D11_VIEWPORT* dxutViewPort,
+	bool bVisualize )
 {
 	HRESULT hr = S_OK;
 	D3D11_MAPPED_SUBRESOURCE MappedResource;
@@ -1223,6 +1224,8 @@ HRESULT CascadedShadowsManager::UpdateConstantBuffer( ID3D11DeviceContext* pd3dD
 	XMStoreFloat4( &pcbAllShadowConstants->m_CameraPosition, pActiveCamera->GetEyePt() );
 	XMStoreFloat4( &pcbAllShadowConstants->m_ScreenSize, XMVectorSet( dxutViewPort->Width, dxutViewPort->Height, 1.0 / dxutViewPort->Width, 1.0 / dxutViewPort->Height ) );
 
+	pcbAllShadowConstants->m_iVisualizeCascades = bVisualize;
+	
 	pd3dDeviceContext->Unmap( m_pcbGlobalConstantBuffer, 0 );
 
 	return hr;
@@ -1241,7 +1244,7 @@ HRESULT CascadedShadowsManager::RenderDepthPass( ID3D11DeviceContext* pd3dDevice
 	HRESULT hr = S_OK;
 	ID3D11RenderTargetView* pnullView = nullptr;
 
-	UpdateConstantBuffer( pd3dDeviceContext, pActiveCamera, dxutViewPort );
+	UpdateConstantBuffer( pd3dDeviceContext, pActiveCamera, dxutViewPort, false );
 
 	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateZPass, 0 );
 	// We have a seperate render state for the actual rasterization because of different depth biases and Cull modes.
@@ -1371,7 +1374,7 @@ HRESULT CascadedShadowsManager::RenderMainPass( ID3D11DeviceContext* pd3dDeviceC
 {
 	HRESULT hr = S_OK;
 
-	UpdateConstantBuffer( pd3dDeviceContext, pActiveCamera, dxutViewPort );
+	UpdateConstantBuffer( pd3dDeviceContext, pActiveCamera, dxutViewPort, bVisualize );
 
 	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateEqual, 0 );
 	// We have a seperate render state for the actual rasterization because of different depth biases and Cull modes.
