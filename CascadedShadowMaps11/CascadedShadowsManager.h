@@ -46,11 +46,6 @@ public:
 		CFirstPersonCamera* pActiveCamera,
 		D3D11_VIEWPORT* dxutViewPort );
 
-	HRESULT ShadowSSUVPass(
-		ID3D11DeviceContext* pd3dDeviceContext,
-		ID3D11ShaderResourceView* psrvBackBuffer,
-		D3D11_VIEWPORT* dxutViewPort );
-
 	HRESULT ShadowMapCoveragePass( 
 		ID3D11DeviceContext* pd3dDeviceContext, 
 		ID3D11ShaderResourceView* psrvBackBuffer,  
@@ -103,7 +98,6 @@ private:
 
     HRESULT ReleaseAndAllocateNewShadowResources( ID3D11Device* pd3dDevice );  // This is called when cascade config changes. 
 
-	HRESULT ReleaseAndAllocateNewScreenSpaceResources( ID3D11Device* pd3dDevice, D3D11_VIEWPORT* dxutViewPort );  // This is called when screen size changes.
 
     DirectX::XMVECTOR                   m_vSceneAABBMin;
     DirectX::XMVECTOR                   m_vSceneAABBMax;
@@ -128,8 +122,6 @@ private:
 	ID3DBlob*                           m_ppsRenderDepthBlob;
 	ID3D11ComputeShader*				m_pcsShadowCoverage[MAX_CASCADES];
 	ID3DBlob*							m_pcsShadowCoverageBlob[MAX_CASCADES];
-	ID3D11ComputeShader*				m_pcsShadowSSUV[MAX_CASCADES];
-	ID3DBlob*							m_pcsShadowSSUVBlob[MAX_CASCADES];
     ID3D11VertexShader*                 m_pvsRenderScene[MAX_CASCADES];
     ID3DBlob*                           m_pvsRenderSceneBlob[MAX_CASCADES];
     ID3D11PixelShader*                  m_ppsRenderSceneAllShaders[MAX_CASCADES][2][2][2];
@@ -137,9 +129,6 @@ private:
     ID3D11Texture2D*                    m_pCascadedShadowMapTexture;
 	ID3D11DepthStencilView*             m_pCascadedShadowMapDSV;
 	ID3D11ShaderResourceView*           m_pCascadedShadowMapSRV;
-	ID3D11Texture2D*                    m_pShadowSSUVMapTexture;
-	ID3D11UnorderedAccessView*          m_pShadowSSUVMapUAV;
-	ID3D11ShaderResourceView*           m_pShadowSSUVMapSRV;
 	ID3D11Texture2D*					m_pShadowCoverageMapTexture;
 	ID3D11UnorderedAccessView*          m_pShadowCoverageMapUAV;
 	ID3D11ShaderResourceView*           m_pShadowCoverageMapSRV;

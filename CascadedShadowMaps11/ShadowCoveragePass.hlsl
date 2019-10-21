@@ -47,7 +47,7 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 	const float3 viewRayLeft = lerp( m_CameraDirs[0], m_CameraDirs[1], screenUV.y ).xyz;
 	const float3 viewRayRight = lerp( m_CameraDirs[2], m_CameraDirs[3], screenUV.y ).xyz;
 	const float3 viewRay = lerp( viewRayLeft, viewRayRight, screenUV.x );
-	
+
 	[unroll]
 	for (uint sampleId = 0; sampleId < 4; sampleId++)
 	{
@@ -56,7 +56,7 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 
 		if (zwDepth > 1.0 - EPS)
 			continue;
-
+	
 		const float linearDepth = m_mProj[3][2] / (zwDepth - m_mProj[2][2]);
 
 		const float4 worldPos = float4(m_CameraPosition.xyz + viewRay * linearDepth, 1.0);
@@ -67,11 +67,12 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 		{
 			float2 vShadowTexCoord01 = vShadowTexCoordViewSpace * m_vCascadeScale[iCascadeIndex].xy;
 			vShadowTexCoord01 += m_vCascadeOffset[iCascadeIndex].xy;
- 
+			
 			float2 vShadowTexCoord = vShadowTexCoord01;
 			vShadowTexCoord.x *= m_fShadowPartitionSize;
 			vShadowTexCoord.x = (vShadowTexCoord.x + (float)iCascadeIndex) * m_fShadowPartitionSize;// precomputed (float)iCascadeIndex / (float)CASCADE_CNT
-
+			
+			[flatten]
 			if ( min( vShadowTexCoord.x, vShadowTexCoord.y ) > m_fMinBorderPadding &&
 				 max( vShadowTexCoord.x, vShadowTexCoord.y ) < m_fMaxBorderPadding )
 			{
@@ -83,14 +84,13 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 		}
 	}	
 	dataHashVector = uint4(dataHash[0], dataHash[1], dataHash[2], dataHash[3]);
-	
-	// All samples are discarded
-	const bool4 dataHashEqualsZero = dataHashVector == uint4(0, 0, 0, 0);
-	if (dataHashEqualsZero.x && dataHashEqualsZero.z && dataHashEqualsZero.w && dataHashEqualsZero.w)
-		return;
-	/*
-	g_sharedData[threadID.x][threadID.y] = dataHashVector;
 
+	// All samples are discarded
+	if( all( dataHashVector == uint4(0, 0, 0, 0) ) )
+		return;
+
+	g_sharedData[threadID.x][threadID.y] = dataHashVector;
+	
 	GroupMemoryBarrier();
 	
 	if (threadID.x != COMPUTE_NUM_THREAD_X - 1 || threadID.y != COMPUTE_NUM_THREAD_Y - 1)
@@ -111,7 +111,7 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 		if ( compareHash( dataHashVector, sdata ) )
 			return;
 	}
-	
+
 	static bool debugOutput = true;
 
 	if ( debugOutput ) {
@@ -120,5 +120,5 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 		[unroll]
 		for (int i = 0; i < 4; i++)
 			InterlockedOr( g_txCoverageMap[dispatchSampleIndex + sampleOffsets[i]], outputData[i] );
-	}*/
+	}
 }

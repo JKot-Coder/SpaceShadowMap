@@ -395,14 +395,13 @@ LPCWSTR GetFrameMetrics()
 		dTDrawTotal += g_gpuProfiler.DtAvg( gts ) * 1000.0f;
 
 	const float zpassTime = g_gpuProfiler.DtAvg( GTS_ZPass ) * 1000.0f;
-	const float shadowSSUVTime = g_gpuProfiler.DtAvg( GTS_ShadowSSUV ) * 1000.0f;
 	const float shadowCoverageTime = g_gpuProfiler.DtAvg( GTS_ShadowCoverage ) * 1000.0f;
 	const float shadowCastTime = g_gpuProfiler.DtAvg( GTS_ShadowCast ) * 1000.0f;
 	const float mainPassTime = g_gpuProfiler.DtAvg( GTS_MainPass ) * 1000.0f;
 
 	swprintf_s( g_frameMetrics,
-		256, L"ZPass: %.3f Shadow SSUV %.3f Shadow Coverage %.3f Shadow Pass %.3f MainPass %.3f Total frame time %.3f",
-		zpassTime, shadowSSUVTime, shadowCoverageTime, shadowCastTime, mainPassTime, dTDrawTotal );
+		256, L"ZPass: %.3f Shadow Coverage %.3f Shadow Pass %.3f MainPass %.3f Total frame time %.3f",
+		zpassTime, shadowCoverageTime, shadowCastTime, mainPassTime, dTDrawTotal );
 
 	return g_frameMetrics;
 }
@@ -955,12 +954,6 @@ void CALLBACK OnD3D11FrameRender( ID3D11Device* pd3dDevice, ID3D11DeviceContext*
 	userAnnotation->EndEvent();
 
 	g_gpuProfiler.Timestamp( pd3dImmediateContext, GTS_ZPass );
-
-	userAnnotation->BeginEvent( L"Shadow SSUV pass" );
-	g_CascadedShadow.ShadowSSUVPass( pd3dImmediateContext, pSRV, &vp );
-	userAnnotation->EndEvent();
-
-	g_gpuProfiler.Timestamp( pd3dImmediateContext, GTS_ShadowSSUV );
 
 	userAnnotation->BeginEvent( L"Shadow coverage pass" );
 	g_CascadedShadow.ShadowMapCoveragePass( pd3dImmediateContext, pSRV, &vp );

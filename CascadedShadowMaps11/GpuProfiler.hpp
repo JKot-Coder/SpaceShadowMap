@@ -36,7 +36,6 @@ enum GTS
 	GTS_BeginFrame,
 	GTS_FrameInit,
 	GTS_ZPass,
-	GTS_ShadowSSUV,
 	GTS_ShadowCoverage,
 	GTS_ShadowCast,
 	GTS_MainPass,

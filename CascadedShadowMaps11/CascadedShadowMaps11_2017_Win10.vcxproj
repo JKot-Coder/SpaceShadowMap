@@ -407,11 +407,6 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="ShadowSSUVPass.hlsl">
-      <FileType>Document</FileType>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="ShadowCoveragePass.hlsl">
       <FileType>Document</FileType>
     </None>
