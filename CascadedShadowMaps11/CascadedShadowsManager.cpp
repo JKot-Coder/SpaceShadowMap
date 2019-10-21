@@ -322,7 +322,7 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
     V_RETURN( pd3dDevice->CreateBuffer( &Desc, nullptr, &m_pcbGlobalConstantBuffer ) );
     DXUT_SetDebugName( m_pcbGlobalConstantBuffer, "CB_ALL_SHADOW_DATACB_ALL_SHADOW_DATA" );
 
-	const int covegrageMapSize = 4096;
+	const int covegrageMapSize = 128;
 
 	CD3D11_TEXTURE2D_DESC sctd( DXGI_FORMAT_R32_TYPELESS,
 		covegrageMapSize,

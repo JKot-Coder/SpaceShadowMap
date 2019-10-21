@@ -8,7 +8,7 @@ static const uint COMPUTE_NUM_THREAD_Y = 16;
 
 static const float2 COVERAGE_MAP_SIZE = float2( 128, 128 );
 
-groupshared uint4 g_sharedData[COMPUTE_NUM_THREAD_X+1][COMPUTE_NUM_THREAD_Y]; // Plus one for minimize bank conflicts
+groupshared uint g_sharedData[COMPUTE_NUM_THREAD_X][COMPUTE_NUM_THREAD_Y];
 
 //--------------------------------------------------------------------------------------
 // Textures and Samplers
@@ -54,6 +54,7 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 		static const float EPS = 0.000001;
 		const float zwDepth = zwDepthGather4[sampleId];
 
+		[flatten]
 		if (zwDepth > 1.0 - EPS)
 			continue;
 	
@@ -69,10 +70,9 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 			vShadowTexCoord01 += m_vCascadeOffset[iCascadeIndex].xy;
 			
 			float2 vShadowTexCoord = vShadowTexCoord01;
-			vShadowTexCoord.x *= m_fShadowPartitionSize;
 			vShadowTexCoord.x = (vShadowTexCoord.x + (float)iCascadeIndex) * m_fShadowPartitionSize;// precomputed (float)iCascadeIndex / (float)CASCADE_CNT
 			
-			[flatten]
+			[branch]
 			if ( min( vShadowTexCoord.x, vShadowTexCoord.y ) > m_fMinBorderPadding &&
 				 max( vShadowTexCoord.x, vShadowTexCoord.y ) < m_fMaxBorderPadding )
 			{
@@ -86,39 +86,43 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 	dataHashVector = uint4(dataHash[0], dataHash[1], dataHash[2], dataHash[3]);
 
 	// All samples are discarded
-	if( all( dataHashVector == uint4(0, 0, 0, 0) ) )
+	if( all( dataHashVector == uint4( 0, 0, 0, 0 ) ) )
 		return;
-
-	g_sharedData[threadID.x][threadID.y] = dataHashVector;
+	
+	g_sharedData[threadID.x][threadID.y] = dataHash[0];
 	
 	GroupMemoryBarrier();
 	
-	if (threadID.x != COMPUTE_NUM_THREAD_X - 1 || threadID.y != COMPUTE_NUM_THREAD_Y - 1)
+	[branch]
+	if (threadID.x != COMPUTE_NUM_THREAD_X - 1)
 	{
-		uint4 sdata = g_sharedData[0][threadID.y];
-		if ( threadID.x != 0 && compareHash( dataHashVector, sdata ) )
-			return;
-
-		sdata = g_sharedData[threadID.x][0];
-		if ( threadID.y != 0 && compareHash( dataHashVector, sdata) )
-			return;
-		
-		sdata = g_sharedData[COMPUTE_NUM_THREAD_X - 1][threadID.y];
-		if ( compareHash( dataHashVector, sdata ) )
-			return;
-
-		sdata = g_sharedData[threadID.x][COMPUTE_NUM_THREAD_Y - 1];
-		if ( compareHash( dataHashVector, sdata ) )
+		uint sdata = g_sharedData[threadID.x+1][threadID.y];
+		[branch]
+		if ( all( dataHashVector == sdata ) )
 			return;
 	}
 
-	static bool debugOutput = true;
-
-	if ( debugOutput ) {
-		static uint2 sampleOffsets[4] = { uint2(0, 1), uint2(1, 1), uint2(1, 0), uint2(0, 0) };
-
-		[unroll]
-		for (int i = 0; i < 4; i++)
-			InterlockedOr( g_txCoverageMap[dispatchSampleIndex + sampleOffsets[i]], outputData[i] );
+	[branch]
+	if(threadID.y != COMPUTE_NUM_THREAD_Y - 1)
+	{
+		[branch]
+		if ( all( dataHashVector == g_sharedData[threadID.x][threadID.y + 1] ) )
+			return;
 	}
+
+	static bool debugOutput = false;
+	static uint2 sampleOffsets[4] = {uint2(0, 1), uint2(1, 1), uint2(1, 0), uint2(0, 0)};
+
+	[unroll]
+	for(uint sampleId = 0; sampleId < 4; sampleId++)
+	{
+		const uint2 outputSampleIndex = debugOutput ? dispatchSampleIndex + sampleOffsets[sampleId] : outputIndex[sampleId];
+		const uint2 outpuData = debugOutput ? dataHash[sampleId] : outputData[sampleId];
+
+		[branch]
+		if(sampleId == 0 || dataHash[sampleId] != dataHash[0])
+			InterlockedOr( g_txCoverageMap[dispatchSampleIndex + sampleOffsets[sampleId]], dataHash[sampleId] );
+
+	}
+
 }

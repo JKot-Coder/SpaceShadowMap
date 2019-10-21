@@ -203,8 +203,8 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 void InitApp()
 {
 
-    g_CascadeConfig.m_nCascadeLevels = 3;
-    g_CascadeConfig.m_iBufferSize = 1024;
+    g_CascadeConfig.m_nCascadeLevels = 4;
+    g_CascadeConfig.m_iBufferSize = 2048;
 
 
     g_CascadedShadow.m_iCascadePartitionsZeroToOne[0] = 5;
