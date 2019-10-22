@@ -116,10 +116,6 @@ private:
     ID3D11InputLayout*                  m_pVertexLayoutMesh;
     ID3D11VertexShader*                 m_pvsRenderOrthoShadow;
     ID3DBlob*                           m_pvsRenderOrthoShadowBlob;
-	ID3D11VertexShader*                 m_pvsRenderDepth;
-	ID3DBlob*                           m_pvsRenderDepthBlob;
-	ID3D11PixelShader*                  m_ppsRenderDepth;
-	ID3DBlob*                           m_ppsRenderDepthBlob;
 	ID3D11ComputeShader*				m_pcsShadowCoverage[MAX_CASCADES];
 	ID3DBlob*							m_pcsShadowCoverageBlob[MAX_CASCADES];
     ID3D11VertexShader*                 m_pvsRenderScene[MAX_CASCADES];

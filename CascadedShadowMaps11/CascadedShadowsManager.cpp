@@ -49,11 +49,7 @@ CascadedShadowsManager::CascadedShadowsManager ()
                             m_iPCFBlurSize( 3 ),
                             m_fPCFOffset( 0.002f ),
                             m_iDerivativeBasedOffset( 0 ),
-                            m_pvsRenderOrthoShadowBlob( nullptr ),
-							m_pvsRenderDepth( nullptr ),
-							m_pvsRenderDepthBlob( nullptr ),
-							m_ppsRenderDepth( nullptr ),
-							m_ppsRenderDepthBlob( nullptr )			
+                            m_pvsRenderOrthoShadowBlob( nullptr )	
 {
     sprintf_s( m_cvsModel, "vs_4_0");
     sprintf_s( m_cpsModel, "ps_4_0");
@@ -96,8 +92,6 @@ CascadedShadowsManager::~CascadedShadowsManager()
 	SAFE_RELEASE( m_pDepthStencilStateZPass );
 	SAFE_RELEASE( m_pDepthStencilStateEqual );
     SAFE_RELEASE( m_pvsRenderOrthoShadowBlob );
-	SAFE_RELEASE( m_pvsRenderDepthBlob );
-	SAFE_RELEASE( m_ppsRenderDepthBlob );
 
     for ( int index=0; index< MAX_CASCADES; ++index ) 
     {
@@ -173,26 +167,6 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
         m_pvsRenderOrthoShadowBlob->GetBufferPointer(), m_pvsRenderOrthoShadowBlob->GetBufferSize(), 
         nullptr, &m_pvsRenderOrthoShadow ) );
     DXUT_SetDebugName( m_pvsRenderOrthoShadow, "RenderCascadeShadow" );
-
-	if(!m_pvsRenderDepthBlob)
-	{
-		V_RETURN( DXUTCompileFromFile(
-			L"RenderCascadeScene.hlsl", nullptr, "VSDepth", m_cvsModel, D3DCOMPILE_ENABLE_STRICTNESS, 0, &m_pvsRenderDepthBlob ) );
-	}
-	V_RETURN( pd3dDevice->CreateVertexShader(
-		m_pvsRenderDepthBlob->GetBufferPointer(), m_pvsRenderDepthBlob->GetBufferSize(),
-		nullptr, &m_pvsRenderDepth ) );
-	DXUT_SetDebugName( m_pvsRenderDepth, "RenderDepth" );
-
-	if(!m_ppsRenderDepthBlob)
-	{
-		V_RETURN( DXUTCompileFromFile(
-			L"RenderCascadeScene.hlsl", nullptr, "PSDepth", m_cpsModel, D3DCOMPILE_ENABLE_STRICTNESS, 0, &m_ppsRenderDepthBlob ) );
-	}
-	V_RETURN( pd3dDevice->CreatePixelShader(
-		m_ppsRenderDepthBlob->GetBufferPointer(), m_ppsRenderDepthBlob->GetBufferSize(),
-		nullptr, &m_ppsRenderDepth ) );
-	DXUT_SetDebugName( m_ppsRenderDepth, "RenderDepth" );
 
     // In order to compile optimal versions of each shaders,compile out 64 versions of the same file.  
     // The if statments are dependent upon these macros.  This enables the compiler to optimize out code that can never be reached.
@@ -342,7 +316,6 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
 	V_RETURN( pd3dDevice->CreateShaderResourceView( m_pShadowCoverageMapTexture, &scsrvd, &m_pShadowCoverageMapSRV ) );
 	DXUT_SetDebugName( m_pShadowCoverageMapSRV, "ShadowCoverageMap SRV" );
 
-
     return hr;
 }
 
@@ -373,8 +346,6 @@ HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources()
     SAFE_RELEASE( m_prsScene );
 
     SAFE_RELEASE( m_pvsRenderOrthoShadow );
-	SAFE_RELEASE( m_pvsRenderDepth );    
-	SAFE_RELEASE( m_ppsRenderDepth );
 
 	SAFE_RELEASE( m_pDepthStencilStateZPass );
 	SAFE_RELEASE( m_pDepthStencilStateEqual );
@@ -1256,8 +1227,9 @@ HRESULT CascadedShadowsManager::RenderDepthPass( ID3D11DeviceContext* pd3dDevice
 	pd3dDeviceContext->RSSetViewports( 1, dxutViewPort );
 	pd3dDeviceContext->IASetInputLayout( m_pVertexLayoutMesh );
 
-	pd3dDeviceContext->VSSetShader( m_pvsRenderDepth, nullptr, 0 );
-	pd3dDeviceContext->PSSetShader(	m_ppsRenderDepth, nullptr, 0 );
+	// No pixel shader is bound as we're only writing out depth.
+	pd3dDeviceContext->VSSetShader( m_pvsRenderOrthoShadow, nullptr, 0 );
+	pd3dDeviceContext->PSSetShader( nullptr, nullptr, 0 );
 
 	pd3dDeviceContext->VSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
 	pd3dDeviceContext->PSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
@@ -1318,6 +1290,15 @@ HRESULT CascadedShadowsManager::RenderShadowsForAllCascades( ID3D11DeviceContext
 	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateZPass, 0 );
 	// Set a null render target so as not to render color.
 	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, m_pCascadedShadowMapDSV );
+	
+	{
+		pd3dDeviceContext->VSSetShader( m_pvsRenderOrthoShadow, nullptr, 0 );
+		pd3dDeviceContext->PSSetShader( nullptr, nullptr, 0 );
+
+		ID3D11ShaderResourceView* nv = nullptr;
+		pd3dDeviceContext->PSSetShaderResources( 0, 1, &nv );
+	}
+
 
 	if (m_eSelectedNearFarFit == FIT_NEARFAR_PANCAKING)
 	{

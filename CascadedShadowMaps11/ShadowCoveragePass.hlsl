@@ -113,16 +113,16 @@ void main( uint3 dispatchThreadId : SV_DispatchThreadID, uint3 threadID : SV_Gro
 	static bool debugOutput = false;
 	static uint2 sampleOffsets[4] = {uint2(0, 1), uint2(1, 1), uint2(1, 0), uint2(0, 0)};
 
-	[unroll]
-	for(uint sampleId = 0; sampleId < 4; sampleId++)
 	{
-		const uint2 outputSampleIndex = debugOutput ? dispatchSampleIndex + sampleOffsets[sampleId] : outputIndex[sampleId];
-		const uint2 outpuData = debugOutput ? dataHash[sampleId] : outputData[sampleId];
+		[unroll]
+		for(uint sampleId = 0; sampleId < 4; sampleId++)
+		{
+			const uint2 outputSampleIndex = debugOutput ? dispatchSampleIndex + sampleOffsets[sampleId] : outputIndex[sampleId];
+			const uint2 outpuData = debugOutput ? dataHash[sampleId] : outputData[sampleId];
 
-		[branch]
-		if(sampleId == 0 || dataHash[sampleId] != dataHash[0])
-			InterlockedOr( g_txCoverageMap[dispatchSampleIndex + sampleOffsets[sampleId]], dataHash[sampleId] );
-
+			[branch]
+			if(sampleId == 0 || dataHash[sampleId] != dataHash[0])
+				InterlockedOr( g_txCoverageMap[dispatchSampleIndex + sampleOffsets[sampleId]], dataHash[sampleId] );
+		}
 	}
-
 }
