@@ -28,6 +28,8 @@ public:
                   CFirstPersonCamera* pLightCamera,
                   CascadeConfig* pCascadeConfig
                 );
+
+	HRESULT GenerateCoverageMesh( ID3D11Device* pd3dDevice );
     
     HRESULT DestroyAndDeallocateShadowResources();
 
@@ -81,6 +83,7 @@ public:
     
 
 private:
+	static const int COVERAGE_MAP_SIZE = 128;
 
     // Compute the near and far plane by intersecting an Ortho Projection with the Scenes AABB.
     void ComputeNearAndFar( FLOAT& fNearPlane, 
@@ -114,6 +117,7 @@ private:
 
 // D3D11 variables
     ID3D11InputLayout*                  m_pVertexLayoutMesh;
+	ID3D11InputLayout*					m_pCoverageMapMeshVertexLayoutMesh;
     ID3D11VertexShader*                 m_pvsRenderOrthoShadow;
     ID3DBlob*                           m_pvsRenderOrthoShadowBlob;
 	ID3D11ComputeShader*				m_pcsShadowCoverage[MAX_CASCADES];

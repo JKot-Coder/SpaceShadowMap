@@ -9,6 +9,7 @@
 
 #include "dxut.h"
 
+#include <array>
 #include "CascadedShadowsManager.h"
 #include "DXUTcamera.h"
 #include "SDKMesh.h"
@@ -32,6 +33,7 @@ static const XMVECTORF32 g_vZero = { 0.0f, 0.0f, 0.0f, 0.0f };
 //--------------------------------------------------------------------------------------
 CascadedShadowsManager::CascadedShadowsManager () 
                           : m_pVertexLayoutMesh( nullptr ),
+							m_pCoverageMapMeshVertexLayoutMesh( nullptr ),
 							m_pSamPointRenderTarget( nullptr ),
                             m_pSamLinear( nullptr ),
                             m_pSamShadowPCF( nullptr ),  
@@ -296,11 +298,11 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
     V_RETURN( pd3dDevice->CreateBuffer( &Desc, nullptr, &m_pcbGlobalConstantBuffer ) );
     DXUT_SetDebugName( m_pcbGlobalConstantBuffer, "CB_ALL_SHADOW_DATACB_ALL_SHADOW_DATA" );
 
-	const int covegrageMapSize = 128;
+
 
 	CD3D11_TEXTURE2D_DESC sctd( DXGI_FORMAT_R32_TYPELESS,
-		covegrageMapSize,
-		covegrageMapSize,
+		COVERAGE_MAP_SIZE,
+		COVERAGE_MAP_SIZE,
 		1,
 		1,
 		D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS );
@@ -316,7 +318,58 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
 	V_RETURN( pd3dDevice->CreateShaderResourceView( m_pShadowCoverageMapTexture, &scsrvd, &m_pShadowCoverageMapSRV ) );
 	DXUT_SetDebugName( m_pShadowCoverageMapSRV, "ShadowCoverageMap SRV" );
 
+	V_RETURN( GenerateCoverageMesh( pd3dDevice ) );
+
     return hr;
+}
+
+HRESULT CascadedShadowsManager::GenerateCoverageMesh( ID3D11Device* pd3dDevice )
+{
+	HRESULT hr = S_OK;
+
+	const float tileSize = 1.0f / COVERAGE_MAP_SIZE;
+	const float halfTileSize = tileSize * 0.5f;
+
+	std::array<XMFLOAT2, COVERAGE_MAP_SIZE * COVERAGE_MAP_SIZE * 4> vertices;
+	std::array<int32_t, COVERAGE_MAP_SIZE * COVERAGE_MAP_SIZE * 6> indices;
+
+	int indexCount = 0;
+	int vertexCount = 0;
+
+	for(int i = 0; i < COVERAGE_MAP_SIZE; i++)
+		for(int j = 0; j < COVERAGE_MAP_SIZE; j++)
+		{
+			XMFLOAT2 tileCenter = XMFLOAT2( ( i + 0.5f ) * tileSize, ( j + 0.5f ) * tileSize );
+
+			vertices[vertexCount++] = XMFLOAT2( tileCenter.x - halfTileSize, tileCenter.y - halfTileSize );
+			vertices[vertexCount++] = XMFLOAT2( tileCenter.x + halfTileSize, tileCenter.y - halfTileSize );
+			vertices[vertexCount++] = XMFLOAT2( tileCenter.x + halfTileSize, tileCenter.y + halfTileSize );
+			vertices[vertexCount++] = XMFLOAT2( tileCenter.x - halfTileSize, tileCenter.y + halfTileSize );
+
+			indices[indexCount++] = vertexCount - 4;
+			indices[indexCount++] = vertexCount - 3;
+			indices[indexCount++] = vertexCount - 2;
+
+			indices[indexCount++] = vertexCount - 4;
+			indices[indexCount++] = vertexCount - 2;
+			indices[indexCount++] = vertexCount - 1;
+		}
+
+	const D3D11_INPUT_ELEMENT_DESC coverageMapMeshLayoutDesc[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "UV",       0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	};
+
+	V_RETURN( pd3dDevice->CreateInputLayout(
+		coverageMapMeshLayoutDesc, ARRAYSIZE( coverageMapMeshLayoutDesc ),
+		m_pvsRenderSceneBlob[0]->GetBufferPointer(),
+		m_pvsRenderSceneBlob[0]->GetBufferSize(),
+		&m_pCoverageMapMeshVertexLayoutMesh ) );
+
+	DXUT_SetDebugName( m_pCoverageMapMeshVertexLayoutMesh, "Coverage Map Mesh Layout" );
+
+	return hr;
 }
 
 
@@ -326,6 +379,7 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
 HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources() 
 {
     SAFE_RELEASE( m_pVertexLayoutMesh );
+	SAFE_RELEASE( m_pCoverageMapMeshVertexLayoutMesh );
 	SAFE_RELEASE( m_pSamPointRenderTarget );
     SAFE_RELEASE( m_pSamLinear );
     SAFE_RELEASE( m_pSamShadowPoint );
@@ -1232,7 +1286,6 @@ HRESULT CascadedShadowsManager::RenderDepthPass( ID3D11DeviceContext* pd3dDevice
 	pd3dDeviceContext->PSSetShader( nullptr, nullptr, 0 );
 
 	pd3dDeviceContext->VSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
-	pd3dDeviceContext->PSSetConstantBuffers( 0, 1, &m_pcbGlobalConstantBuffer );
 
 	pMesh->Render( pd3dDeviceContext, 0, 1 );
 
