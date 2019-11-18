@@ -33,7 +33,7 @@ static const XMVECTORF32 g_vZero = { 0.0f, 0.0f, 0.0f, 0.0f };
 //--------------------------------------------------------------------------------------
 CascadedShadowsManager::CascadedShadowsManager () 
                           : m_pVertexLayoutMesh( nullptr ),
-							m_pCoverageMapMeshVertexLayoutMesh( nullptr ),
+							m_pPrepareShadowMapVertexLayoutMesh( nullptr ),
 							m_pSamPointRenderTarget( nullptr ),
                             m_pSamLinear( nullptr ),
                             m_pSamShadowPCF( nullptr ),  
@@ -51,7 +51,10 @@ CascadedShadowsManager::CascadedShadowsManager ()
                             m_iPCFBlurSize( 3 ),
                             m_fPCFOffset( 0.002f ),
                             m_iDerivativeBasedOffset( 0 ),
-                            m_pvsRenderOrthoShadowBlob( nullptr )	
+                            m_pvsRenderOrthoShadowBlob( nullptr ),
+							m_pvsRenderOrthoShadow( nullptr ),
+							m_pvsPrepareShadowMap( nullptr ),
+							m_pvsPrepareShadowMapBlob( nullptr )
 {
     sprintf_s( m_cvsModel, "vs_4_0");
     sprintf_s( m_cpsModel, "ps_4_0");
@@ -94,6 +97,7 @@ CascadedShadowsManager::~CascadedShadowsManager()
 	SAFE_RELEASE( m_pDepthStencilStateZPass );
 	SAFE_RELEASE( m_pDepthStencilStateEqual );
     SAFE_RELEASE( m_pvsRenderOrthoShadowBlob );
+	SAFE_RELEASE( m_pvsPrepareShadowMapBlob );
 
     for ( int index=0; index< MAX_CASCADES; ++index ) 
     {
@@ -169,6 +173,18 @@ HRESULT CascadedShadowsManager::Init ( ID3D11Device* pd3dDevice,
         m_pvsRenderOrthoShadowBlob->GetBufferPointer(), m_pvsRenderOrthoShadowBlob->GetBufferSize(), 
         nullptr, &m_pvsRenderOrthoShadow ) );
     DXUT_SetDebugName( m_pvsRenderOrthoShadow, "RenderCascadeShadow" );
+
+
+	if( !m_pvsPrepareShadowMapBlob )
+	{
+		V_RETURN( DXUTCompileFromFile(
+			L"PrepareShadowMap.hlsl", nullptr, "VSMain", m_cvsModel, D3DCOMPILE_ENABLE_STRICTNESS, 0, &m_pvsPrepareShadowMapBlob ) );
+	}
+
+	V_RETURN( pd3dDevice->CreateVertexShader(
+		m_pvsPrepareShadowMapBlob->GetBufferPointer(), m_pvsPrepareShadowMapBlob->GetBufferSize(),
+		nullptr, &m_pvsPrepareShadowMap ) );
+	DXUT_SetDebugName( m_pvsPrepareShadowMap, "PrepareShadowMap" );
 
     // In order to compile optimal versions of each shaders,compile out 64 versions of the same file.  
     // The if statments are dependent upon these macros.  This enables the compiler to optimize out code that can never be reached.
@@ -355,19 +371,19 @@ HRESULT CascadedShadowsManager::GenerateCoverageMesh( ID3D11Device* pd3dDevice )
 			indices[indexCount++] = vertexCount - 1;
 		}
 
-	const D3D11_INPUT_ELEMENT_DESC coverageMapMeshLayoutDesc[] =
+	const D3D11_INPUT_ELEMENT_DESC prepareShadowMapMeshLayoutDesc[] =
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "UV",       0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
 
 	V_RETURN( pd3dDevice->CreateInputLayout(
-		coverageMapMeshLayoutDesc, ARRAYSIZE( coverageMapMeshLayoutDesc ),
-		m_pvsRenderSceneBlob[0]->GetBufferPointer(),
-		m_pvsRenderSceneBlob[0]->GetBufferSize(),
-		&m_pCoverageMapMeshVertexLayoutMesh ) );
+		prepareShadowMapMeshLayoutDesc, ARRAYSIZE( prepareShadowMapMeshLayoutDesc ),
+		m_pvsPrepareShadowMapBlob->GetBufferPointer(),
+		m_pvsPrepareShadowMapBlob->GetBufferSize(),
+		&m_pPrepareShadowMapVertexLayoutMesh ) );
 
-	DXUT_SetDebugName( m_pCoverageMapMeshVertexLayoutMesh, "Coverage Map Mesh Layout" );
+	DXUT_SetDebugName( m_pPrepareShadowMapVertexLayoutMesh, "Coverage Map Mesh Layout" );
 
 	return hr;
 }
@@ -379,7 +395,7 @@ HRESULT CascadedShadowsManager::GenerateCoverageMesh( ID3D11Device* pd3dDevice )
 HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources() 
 {
     SAFE_RELEASE( m_pVertexLayoutMesh );
-	SAFE_RELEASE( m_pCoverageMapMeshVertexLayoutMesh );
+	SAFE_RELEASE( m_pPrepareShadowMapVertexLayoutMesh );
 	SAFE_RELEASE( m_pSamPointRenderTarget );
     SAFE_RELEASE( m_pSamLinear );
     SAFE_RELEASE( m_pSamShadowPoint );
@@ -400,6 +416,7 @@ HRESULT CascadedShadowsManager::DestroyAndDeallocateShadowResources()
     SAFE_RELEASE( m_prsScene );
 
     SAFE_RELEASE( m_pvsRenderOrthoShadow );
+	SAFE_RELEASE( m_pvsPrepareShadowMap );
 
 	SAFE_RELEASE( m_pDepthStencilStateZPass );
 	SAFE_RELEASE( m_pDepthStencilStateEqual );
@@ -1292,6 +1309,9 @@ HRESULT CascadedShadowsManager::RenderDepthPass( ID3D11DeviceContext* pd3dDevice
 	return hr;
 }
 
+//--------------------------------------------------------------------------------------
+// Shadow Map Coverage Pass
+//--------------------------------------------------------------------------------------
 HRESULT CascadedShadowsManager::ShadowMapCoveragePass(	ID3D11DeviceContext* pd3dDeviceContext,
 	ID3D11ShaderResourceView* psrvBackBuffer,
 	D3D11_VIEWPORT* dxutViewPort )
@@ -1326,6 +1346,49 @@ HRESULT CascadedShadowsManager::ShadowMapCoveragePass(	ID3D11DeviceContext* pd3d
 
 	ID3D11ShaderResourceView* nv = nullptr;
 	pd3dDeviceContext->CSSetShaderResources( 0, 1, &nv );
+
+	return hr;
+}
+
+//--------------------------------------------------------------------------------------
+// Prepare shadow map
+//--------------------------------------------------------------------------------------
+HRESULT CascadedShadowsManager::PrepareShadowMap( ID3D11DeviceContext* pd3dDeviceContext )
+{
+	HRESULT hr = S_OK;
+
+	ID3D11RenderTargetView* pnullView = nullptr;
+
+	pd3dDeviceContext->OMSetDepthStencilState( m_pDepthStencilStateZPass, 0 );
+	// Set a null render target so as not to render color.
+	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, m_pCascadedShadowMapDSV );
+
+	{
+		pd3dDeviceContext->VSSetShader( m_pvsRenderOrthoShadow, nullptr, 0 );
+		pd3dDeviceContext->PSSetShader( nullptr, nullptr, 0 );
+
+		ID3D11ShaderResourceView* nv = nullptr;
+		pd3dDeviceContext->PSSetShaderResources( 0, 1, &nv );
+	}
+
+	pd3dDeviceContext->RSSetState( m_prsShadow );
+	
+	pd3dDeviceContext->IASetInputLayout( m_pPrepareShadowMapVertexLayoutMesh );
+
+	// No pixel shader is bound as we're only writing out depth.
+	pd3dDeviceContext->VSSetShader( m_pvsRenderOrthoShadow, nullptr, 0 );
+	pd3dDeviceContext->PSSetShader( nullptr, nullptr, 0 );
+	pd3dDeviceContext->GSSetShader( nullptr, nullptr, 0 );
+
+	// Iterate over cascades and render shadows.
+	for(INT currentCascade = 0; currentCascade < m_CopyOfCascadeConfig.m_nCascadeLevels; ++currentCascade)
+	{
+		// Each cascade has its own viewport because we're storing all the cascades in one large texture.
+		pd3dDeviceContext->RSSetViewports( 1, &m_RenderVP[currentCascade] );
+	}
+
+	pd3dDeviceContext->RSSetState( nullptr );
+	pd3dDeviceContext->OMSetRenderTargets( 1, &pnullView, nullptr );
 
 	return hr;
 }

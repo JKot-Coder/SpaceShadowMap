@@ -53,6 +53,8 @@ public:
 		ID3D11ShaderResourceView* psrvBackBuffer,  
 		D3D11_VIEWPORT* dxutViewPort );
 
+	HRESULT PrepareShadowMap( ID3D11DeviceContext* pd3dDeviceContext );
+
 	HRESULT RenderShadowsForAllCascades( ID3D11DeviceContext* pd3dDeviceContext, CDXUTSDKMesh* pMesh );
 
 	HRESULT RenderMainPass( ID3D11DeviceContext* pd3dDeviceContext,
@@ -117,9 +119,11 @@ private:
 
 // D3D11 variables
     ID3D11InputLayout*                  m_pVertexLayoutMesh;
-	ID3D11InputLayout*					m_pCoverageMapMeshVertexLayoutMesh;
-    ID3D11VertexShader*                 m_pvsRenderOrthoShadow;
+	ID3D11InputLayout*					m_pPrepareShadowMapVertexLayoutMesh;
+    ID3D11VertexShader*                 m_pvsRenderOrthoShadow; 
     ID3DBlob*                           m_pvsRenderOrthoShadowBlob;
+	ID3D11VertexShader*                 m_pvsPrepareShadowMap;
+	ID3DBlob*							m_pvsPrepareShadowMapBlob;
 	ID3D11ComputeShader*				m_pcsShadowCoverage[MAX_CASCADES];
 	ID3DBlob*							m_pcsShadowCoverageBlob[MAX_CASCADES];
     ID3D11VertexShader*                 m_pvsRenderScene[MAX_CASCADES];

@@ -17,6 +17,9 @@
     <None Include="ShadowCoveragePass.hlsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="PrepareShadowMap.hlsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CascadedShadowMaps11.cpp" />
